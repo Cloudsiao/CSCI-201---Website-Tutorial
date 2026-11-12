@@ -401,44 +401,91 @@ const lessons = [
           </p>
         `
       },
-      {
-        id: "c-array",
-        title: "C Array",
-        html: `
-          <div class="mini-label">Character blocks</div>
-          <h2>What does C[c] mean?</h2>
+      
+        {
+            id: "f-l-columns",
+            title: "F and L Columns",
+            html: `
+                <div class="mini-label">FM-Index Main Concepts</div>
+                <h2>Understanding the First and Last Columns</h2>
 
-          <p>
-            <code>C[c]</code> counts how many characters
-            in the indexed text are lexicographically
-            smaller than <code>c</code>.
-          </p>
+                <p>
+                    The FM-Index uses two important columns from the
+                    Burrows-Wheeler Transform matrix:
+                    the <strong>First Column (F)</strong> and the
+                    <strong>Last Column (L)</strong>.
+                </p>
 
-          <p>
-            It therefore gives the starting position
-            of each character's block in the
-            sorted first column <code>F</code>.
-          </p>
+                <p>
+                    The F column contains the first character of
+                    each lexicographically sorted suffix, while
+                    the L column contains the character immediately
+                    preceding each suffix in the original text,
+                    wrapping around when necessary.
+                </p>
 
-          <div class="table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Character</th>
-                  <th>Count in banana$</th>
-                  <th>C[c]</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr><td><code>$</code></td><td>1</td><td>0</td></tr>
-                <tr><td><code>a</code></td><td>3</td><td>1</td></tr>
-                <tr><td><code>b</code></td><td>1</td><td>4</td></tr>
-                <tr><td><code>n</code></td><td>2</td><td>5</td></tr>
-              </tbody>
-            </table>
-          </div>
-        `
-      },
+                <div class="callout">
+                    <p>
+                        <strong>Remember:</strong>
+                        We use the same original string
+                        <code>T = banana$</code> and
+                        0-based indexing throughout.
+                    </p>
+                </div>
+
+                <div class="stepper" id="fm-columns-lesson">
+                    <div class="mini-label">
+                        Interactive F and L Columns
+                    </div>
+
+                    <div class="stepper-controls">
+                        <button type="button" class="btn"
+                                id="fl-show-both">
+                            Show Both
+                        </button>
+
+                        <button type="button" class="btn secondary"
+                                id="fl-show-f">
+                            Highlight F
+                        </button>
+
+                        <button type="button" class="btn secondary"
+                                id="fl-show-l">
+                            Highlight L
+                        </button>
+                    </div>
+
+                    <div id="fm-columns-output"
+                         class="stepper-output"
+                         aria-live="polite"></div>
+                </div>
+
+                <div class="callout">
+                    <p>
+                        <strong>Why are F and L important?</strong>
+                        The FM-Index uses the relationship between
+                        these columns to navigate through the
+                        indexed sequence without storing the
+                        entire BWT matrix.
+                    </p>
+                </div>
+            `
+        },
+        {
+            id: "c-array",
+            title: "C Array",
+            html: `
+                <div class="mini-label">FM-Index Main Concepts</div>
+                <h2>Understanding the C Array</h2>
+
+                <p>
+                    The C Array stores the number of characters
+                    lexicographically smaller than each character
+                    in the original string.
+                </p>
+            `
+        },
+
       {
         id: "occ-rank",
         title: "Occ / Rank Function",
@@ -1656,6 +1703,163 @@ function initInverseBWTStepper() {
 
   showStep();
 }
+
+function initFMColumnsLesson() {
+    if (!$("fm-columns-lesson")) return;
+
+    const T = "banana$";
+    const n = T.length;
+
+    // Generate suffixes and record starting positions.
+    const suffixes = Array.from(
+        { length: n },
+        (_, i) => ({
+            suffix: T.slice(i),
+            start: i
+        })
+    );
+
+    // Sort suffixes lexicographically.
+    const sorted = [...suffixes].sort((a, b) =>
+        a.suffix < b.suffix ? -1 :
+        a.suffix > b.suffix ? 1 : 0
+    );
+
+    // Construct the F and L columns.
+    const rows = sorted.map((item, i) => ({
+        row: i,
+        suffix: item.suffix,
+        sa: item.start,
+        F: item.suffix[0],
+        L: T[(item.start - 1 + n) % n]
+    }));
+
+    const F = rows.map(row => row.F).join("");
+    const L = rows.map(row => row.L).join("");
+
+    const output = $("fm-columns-output");
+
+    const buttons = {
+        both: $("fl-show-both"),
+        F: $("fl-show-f"),
+        L: $("fl-show-l")
+    };
+
+    function showColumns(mode) {
+        const tableRows = rows.map(row => {
+            const highlightF = mode === "F";
+            const highlightL = mode === "L";
+
+            return `
+                <tr>
+                    <td>${row.row}</td>
+                    <td><code>${row.suffix}</code></td>
+                    <td>${row.sa}</td>
+
+                    <td style="${highlightF
+                        ? 'background:#e9f6f3;font-weight:bold'
+                        : ''}">
+                        <code>${row.F}</code>
+                    </td>
+
+                    <td style="${highlightL
+                        ? 'background:#e9f6f3;font-weight:bold'
+                        : ''}">
+                        <code>${row.L}</code>
+                    </td>
+                </tr>
+            `;
+        }).join("");
+
+        let explanation = "";
+
+        if (mode === "F") {
+            explanation = `
+                <p>
+                    <strong>First Column (F):</strong>
+                    Take the first character of each sorted
+                    suffix. The result is
+                    <code>${F}</code>.
+                </p>
+            `;
+        } else if (mode === "L") {
+            explanation = `
+                <p>
+                    <strong>Last Column (L):</strong>
+                    Take the character immediately preceding
+                    each suffix in the original string.
+                    The result is <code>${L}</code>.
+                </p>
+            `;
+        } else {
+            explanation = `
+                <p>
+                    The first and last columns are
+                    <code>F = ${F}</code> and
+                    <code>L = ${L}</code>.
+                </p>
+            `;
+        }
+
+        output.innerHTML = `
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Row i</th>
+                            <th>Sorted Suffix</th>
+                            <th>SA[i]</th>
+                            <th>F[i]</th>
+                            <th>L[i]</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        ${tableRows}
+                    </tbody>
+                </table>
+            </div>
+
+            ${explanation}
+
+            <div class="example-grid">
+                <div class="example-box">
+                    <strong>First Column F</strong>
+                    <code>${F}</code>
+                </div>
+
+                <div class="example-box">
+                    <strong>Last Column L</strong>
+                    <code>${L}</code>
+                </div>
+            </div>
+        `;
+
+        Object.entries(buttons).forEach(([key, button]) => {
+            const selected = key === mode;
+
+            button.classList.toggle("secondary", !selected);
+            button.setAttribute(
+                "aria-pressed",
+                String(selected)
+            );
+        });
+    }
+
+    buttons.both.addEventListener("click", () => {
+        showColumns("both");
+    });
+
+    buttons.F.addEventListener("click", () => {
+        showColumns("F");
+    });
+
+    buttons.L.addEventListener("click", () => {
+        showColumns("L");
+    });
+
+    showColumns("both");
+}
 function initBackwardStepper() {
   const host = $("backward-stepper");
 
@@ -1826,6 +2030,7 @@ function render() {
   initBWTRotationStepper();
   initSuffixArrayStepper();
   initInverseBWTStepper();
+  initFMColumnsLesson();
   initBackwardStepper();
 }
 
