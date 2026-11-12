@@ -281,27 +281,86 @@ const lessons = [
     </div>
   `
 },
+
 {
   id: "inverse",
   title: "Inverse BWT",
   html: `
-    <div class="mini-label">Reversibility</div>
+    <div class="mini-label">Interactive BWT Reversal</div>
     <h2>Reconstruct the Original String</h2>
 
     <p>
-      Inverse BWT uses LF Mapping to reconstruct
-      the original string from its BWT output.
+      The Burrows-Wheeler Transform is reversible.
+      We can reconstruct the original string
+      from its BWT output using
+      <strong>Last-to-First (LF) Mapping</strong>.
     </p>
 
-    <p>
-      We will demonstrate how
-      <code>annb$aa</code> is transformed
-      back into <code>banana$</code>.
-    </p>
+    <div class="example-grid">
+      <div class="example-box">
+        <strong>BWT input (L)</strong>
+        <code>annb$aa</code>
+      </div>
+      <div class="example-box">
+        <strong>Expected original string</strong>
+        <code>banana$</code>
+      </div>
+    </div>
+
+    <h3>LF Mapping Formula</h3>
+    <div class="formula">
+      LF(i) = C[L[i]] + Occ(L[i], i)
+    </div>
+
+    <ul>
+      <li><strong>i:</strong> Current row index</li>
+      <li><strong>L[i]:</strong> Character at row i of the BWT</li>
+      <li><strong>C[c]:</strong> Number of characters smaller than c</li>
+      <li><strong>Occ(c,i):</strong> Number of c characters before index i in L</li>
+      <li><strong>LF(i):</strong> Next row to visit</li>
+    </ul>
+
+    <div class="callout">
+      <p>
+        <strong>Remember:</strong>
+        Start from the row containing the unique
+        end marker <code>$</code> in L.
+        Recover the characters from right to left.
+        We use 0-based indexing.
+      </p>
+    </div>
+
+    <div class="stepper" id="inverse-bwt-stepper">
+      <div class="mini-label">Interactive Inverse BWT</div>
+
+      <div id="inverse-bwt-output"
+           class="stepper-output"
+           aria-live="polite"></div>
+
+      <div class="stepper-controls">
+        <button class="btn secondary"
+                id="inverse-bwt-prev">
+          ← Previous
+        </button>
+
+        <button class="btn"
+                id="inverse-bwt-next">
+          Next step →
+        </button>
+
+        <button class="btn secondary"
+                id="inverse-bwt-reset">
+          Reset
+        </button>
+
+        <span id="inverse-bwt-progress"
+              class="lesson-position"></span>
+      </div>
+    </div>
   `
 }
-    ]  // Closes the BWT topics array
-  },   // Closes the BWT section
+    ]  
+  },  
 
   // ==================================================
   // 3. FM-INDEX
@@ -1395,6 +1454,208 @@ function initSuffixArrayStepper() {
 
   showStep();
 }
+
+function initInverseBWTStepper() {
+  if (!$("inverse-bwt-stepper")) return;
+
+  const L = "annb$aa";
+  const n = L.length;
+
+  // First column: characters sorted lexicographically.
+  const F = [...L].sort().join("");
+
+  // C array for banana$.
+  const C = {
+    "$": 0,
+    "a": 1,
+    "b": 4,
+    "n": 5
+  };
+
+  // Occ(c,i) counts c before position i.
+  function Occ(c, i) {
+    return [...L.slice(0, i)]
+      .filter(character => character === c).length;
+  }
+
+  // Begin at the row of the sentinel in L.
+  let row = L.indexOf("$");
+
+  // Original text will be reconstructed right to left.
+  const recovered = Array(n).fill("?");
+  const steps = [];
+
+  for (let position = n - 1; position >= 0; position--) {
+    const currentRow = row;
+    const character = L[row];
+
+    const cValue = C[character];
+    const occValue = Occ(character, row);
+
+    // Calculate LF mapping.
+    const nextRow = cValue + occValue;
+
+    recovered[position] = character;
+
+    steps.push({
+      row: currentRow,
+      character: character,
+      position: position,
+      cValue: cValue,
+      occValue: occValue,
+      nextRow: nextRow,
+      partial: recovered.join("")
+    });
+
+    row = nextRow;
+  }
+
+  let step = 0;
+
+  const output = $("inverse-bwt-output");
+  const previous = $("inverse-bwt-prev");
+  const next = $("inverse-bwt-next");
+  const reset = $("inverse-bwt-reset");
+  const progress = $("inverse-bwt-progress");
+
+  // Display the first and last BWT columns.
+  function makeColumnTable(highlightRow) {
+    const body = Array.from({ length: n }, (_, i) => `
+      <tr ${i === highlightRow
+        ? 'style="background:#e9f6f3"'
+        : ""}>
+        <td>${i}</td>
+        <td><code>${F[i]}</code></td>
+        <td><code>${L[i]}</code></td>
+      </tr>
+    `).join("");
+
+    return `
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Row i</th>
+              <th>First (F)</th>
+              <th>Last (L)</th>
+            </tr>
+          </thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  function showStep() {
+    let html = "";
+
+    if (step === 0) {
+      html = `
+        <h3>Start: Given BWT String</h3>
+
+        <p>
+          We are given <code>L = ${L}</code>.
+          Locate the sentinel <code>$</code>,
+          which is at row <strong>${L.indexOf("$")}</strong>.
+        </p>
+
+        ${makeColumnTable(L.indexOf("$"))}
+
+        <p>
+          We will follow LF Mapping and fill the
+          original string from right to left.
+        </p>
+
+        <div class="formula">
+          T = ???????
+        </div>
+      `;
+    } else {
+      const state = steps[step - 1];
+
+      html = `
+        <h3>Step ${step}: Recover Character</h3>
+
+        <p>
+          Current row:
+          <strong>${state.row}</strong>.
+          The character in L at this row is
+          <code>${state.character}</code>.
+        </p>
+
+        ${makeColumnTable(state.row)}
+
+        <p>
+          Place <code>${state.character}</code>
+          at original string position
+          <strong>${state.position}</strong>.
+        </p>
+
+        <div class="formula">
+          LF(${state.row})
+          = C[${state.character}]
+            + Occ(${state.character}, ${state.row})
+          <br>
+          = ${state.cValue} + ${state.occValue}
+          <br>
+          = ${state.nextRow}
+        </div>
+
+        <p>
+          Next row to visit:
+          <strong>${state.nextRow}</strong>
+        </p>
+
+        <div class="example-box">
+          <strong>Original string recovered so far</strong>
+          <span class="code-sequence">
+            ${state.partial}
+          </span>
+        </div>
+
+        ${step === n ? `
+          <div class="callout">
+            <p>
+              <strong>Inverse BWT complete!</strong>
+            </p>
+            <p>
+              Original string:
+              <code>${state.partial}</code>
+            </p>
+          </div>
+        ` : ""}
+      `;
+    }
+
+    output.innerHTML = html;
+
+    previous.disabled = step === 0;
+    next.disabled = step === n;
+
+    next.textContent = next.disabled
+      ? "Complete ✓"
+      : "Next step →";
+
+    progress.textContent = `Step ${step} of ${n}`;
+  }
+
+  previous.addEventListener("click", () => {
+    step = Math.max(0, step - 1);
+    showStep();
+  });
+
+  next.addEventListener("click", () => {
+    step = Math.min(n, step + 1);
+    showStep();
+  });
+
+  reset.addEventListener("click", () => {
+    step = 0;
+    showStep();
+  });
+
+  showStep();
+}
 function initBackwardStepper() {
   const host = $("backward-stepper");
 
@@ -1564,6 +1825,7 @@ function render() {
   // Initialize interactive lessons.
   initBWTRotationStepper();
   initSuffixArrayStepper();
+  initInverseBWTStepper();
   initBackwardStepper();
 }
 
