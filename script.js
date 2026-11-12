@@ -555,51 +555,106 @@ const lessons = [
                 </div>
             `
         },
-      {
-        id: "occ-rank",
-        title: "Occ / Rank Function",
-        html: `
-          <div class="mini-label">Counting in the last column</div>
-          <h2>What is Occ(c, i)?</h2>
+        {
+            id: "occ-rank",
+            title: "Occ / Rank Function",
+            html: `
+                <div class="mini-label">FM-Index Main Concepts</div>
+                <h2>Understanding Occ and Rank</h2>
 
-          <p>
-            <code>Occ(c, i)</code> counts occurrences of
-            character <code>c</code> in the first
-            <code>i</code> characters of the BWT
-            last column <code>L</code>.
-          </p>
+                <p>
+                    The <strong>Occ function</strong> counts
+                    how many times a character appears in a
+                    prefix of the BWT's last column.
+                </p>
 
-          <p>
-            The prefix ends before index <code>i</code>.
-          </p>
+                <div class="formula">
+                    Occ(c, i) = Number of c characters in L[0:i]
+                </div>
 
-          <p>
-            <span class="code-sequence">
-              L = annb$aa
-            </span>
-          </p>
+                <ul>
+                    <li>
+                        <strong>c:</strong>
+                        Character we want to count.
+                    </li>
+                    <li>
+                        <strong>i:</strong>
+                        Prefix length, from 0 to n.
+                    </li>
+                    <li>
+                        <strong>L:</strong>
+                        Last column of the BWT.
+                    </li>
+                    <li>
+                        <strong>Occ(c, i):</strong>
+                        Number of occurrences of c
+                        before position i.
+                    </li>
+                </ul>
 
-          <div class="example-grid">
-            <div class="example-box">
-              <strong>First 4 characters: annb</strong>
-              <code>Occ(n, 4) = 2</code>
-            </div>
-            <div class="example-box">
-              <strong>First 5 characters: annb$</strong>
-              <code>Occ(a, 5) = 1</code>
-            </div>
-          </div>
+                <div class="callout">
+                    <p>
+                        <strong>Important:</strong>
+                        We use 0-based indexing.
+                        The prefix L[0:i] excludes
+                        position i itself.
+                    </p>
 
-          <div class="callout">
-            <p>
-              <strong>Do not confuse:</strong>
-              Occ/rank is the query.
-              Rank checkpoints are one possible way
-              to implement that query efficiently.
-            </p>
-          </div>
-        `
-      },
+                    <p>
+                        In this tutorial, rank and Occ
+                        use the same exclusive-prefix
+                        counting convention.
+                    </p>
+                </div>
+
+                <h3>Interactive Occ / Rank Calculation</h3>
+
+                <p>
+                    Use the controls to examine the BWT
+                    positions and calculate Occ values
+                    one step at a time.
+                </p>
+
+                <div class="stepper" id="occ-rank-stepper">
+
+                    <div id="occ-rank-output"
+                         class="stepper-output"
+                         aria-live="polite"></div>
+
+                    <div class="stepper-controls">
+                        <button type="button"
+                                class="btn secondary"
+                                id="occ-rank-prev">
+                            ← Previous
+                        </button>
+
+                        <button type="button"
+                                class="btn"
+                                id="occ-rank-next">
+                            Next step →
+                        </button>
+
+                        <button type="button"
+                                class="btn secondary"
+                                id="occ-rank-reset">
+                            Reset
+                        </button>
+
+                        <span id="occ-rank-progress"
+                              class="lesson-position"></span>
+                    </div>
+                </div>
+
+                <div class="callout">
+                    <p>
+                        <strong>Why is Occ important?</strong>
+                        The FM-Index combines Occ(c, i)
+                        with C[c] to update the search
+                        interval during backward search.
+                    </p>
+                </div>
+            `
+        },
       {
         id: "lf",
         title: "LF Mapping",
@@ -2204,6 +2259,336 @@ function initCArrayStepper() {
 
     showStep();
 }
+
+function initOccRankStepper() {
+    if (!$("occ-rank-stepper")) return;
+
+    const L = "annb$aa";
+    const alphabet = ["$", "a", "b", "n"];
+
+    // Occ(c, i) counts c in L[0:i].
+    // The character at index i is excluded.
+    function Occ(c, i) {
+        return [...L.slice(0, i)].filter(
+            character => character === c
+        ).length;
+    }
+
+    const output = $("occ-rank-output");
+    const previous = $("occ-rank-prev");
+    const next = $("occ-rank-next");
+    const reset = $("occ-rank-reset");
+    const progress = $("occ-rank-progress");
+
+    let step = 0;
+    const lastStep = 5;
+
+    const examples = [
+        {
+            character: "a",
+            index: 5,
+            explanation:
+                "Only the a at position 0 is counted. " +
+                "The a at position 5 is excluded."
+        },
+        {
+            character: "n",
+            index: 4,
+            explanation:
+                "The prefix annb contains two n characters."
+        },
+        {
+            character: "a",
+            index: 0,
+            explanation:
+                "An empty prefix contains no characters."
+        }
+    ];
+
+    // Show every index and character of L.
+    // Positions before i belong to the counted prefix.
+    function makePositionTable(i, target = null) {
+        const headers = [...L].map((character, index) => `
+            <th>${index}</th>
+        `).join("");
+
+        const cells = [...L].map((character, index) => {
+            const included = index < i;
+            const matches = included && character === target;
+
+            return `
+                <td style="${included
+                    ? 'background:#e9f6f3;'
+                    : ''}">
+                    <code style="${matches
+                        ? 'font-weight:bold;text-decoration:underline;'
+                        : ''}">
+                        ${character}
+                    </code>
+                </td>
+            `;
+        }).join("");
+
+        return `
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Index</th>
+                            ${headers}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <th>L[i]</th>
+                            ${cells}
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <p>
+                The shaded positions are included
+                in the counted prefix.
+            </p>
+        `;
+    }
+
+    // Show the exclusive-prefix boundary.
+    function makePrefixDisplay(i) {
+        const counted = L.slice(0, i);
+        const remaining = L.slice(i);
+
+        return `
+            <div class="formula">
+                <code>${counted || "∅"}</code>
+                &nbsp; | &nbsp;
+                <code>${remaining || "∅"}</code>
+            </div>
+
+            <p>
+                Count only the characters to the
+                <strong>left</strong> of the separator.
+                The separator is not part of L.
+            </p>
+        `;
+    }
+
+    // Construct the complete Occ table.
+    function makeRankTable() {
+        const rows = Array.from(
+            { length: L.length + 1 },
+            (_, i) => {
+                const prefix = L.slice(0, i);
+
+                return `
+                    <tr>
+                        <td>${i}</td>
+                        <td>
+                            <code>${prefix || "∅"}</code>
+                        </td>
+
+                        ${alphabet.map(character => `
+                            <td>
+                                ${Occ(character, i)}
+                            </td>
+                        `).join("")}
+                    </tr>
+                `;
+            }
+        ).join("");
+
+        return `
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Prefix length i</th>
+                            <th>L[0:i]</th>
+                            <th>Occ($, i)</th>
+                            <th>Occ(a, i)</th>
+                            <th>Occ(b, i)</th>
+                            <th>Occ(n, i)</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        ${rows}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    function showStep() {
+        let html = "";
+
+        // Step 0: Introduce L and its positions.
+        if (step === 0) {
+            html = `
+                <h3>Start: Examine the BWT Last Column</h3>
+
+                <p>
+                    We are given:
+                    <code>L = ${L}</code>
+                </p>
+
+                ${makePositionTable(L.length)}
+
+                <p>
+                    The positions are numbered
+                    from 0 through ${L.length - 1}.
+                </p>
+
+                <p>
+                    We will count how many times
+                    a character appears before
+                    a specified position.
+                </p>
+            `;
+        }
+
+        // Steps 1-3: Worked Occ examples.
+        else if (step >= 1 && step <= 3) {
+            const example = examples[step - 1];
+
+            const c = example.character;
+            const i = example.index;
+            const answer = Occ(c, i);
+
+            html = `
+                <h3>
+                    Step ${step}: Calculate Occ(${c}, ${i})
+                </h3>
+
+                <p>
+                    Count occurrences of
+                    <code>${c}</code> in the
+                    first <strong>${i}</strong>
+                    characters of L.
+                </p>
+
+                ${makePositionTable(i, c)}
+
+                ${makePrefixDisplay(i)}
+
+                <div class="formula">
+                    Occ(${c}, ${i}) = ${answer}
+                </div>
+
+                <div class="callout">
+                    <p>${example.explanation}</p>
+                </div>
+            `;
+        }
+
+        // Step 4: Checkpoint at prefix length 4.
+        else if (step === 4) {
+            const i = 4;
+
+            html = `
+                <h3>Step 4: Rank Checkpoint</h3>
+
+                <p>
+                    Consider the first four
+                    characters of L.
+                </p>
+
+                ${makePositionTable(i)}
+
+                ${makePrefixDisplay(i)}
+
+                <p>
+                    Count every character type
+                    in the prefix
+                    <code>${L.slice(0, i)}</code>.
+                </p>
+
+                <div class="formula">
+                    Occ($, 4) = ${Occ("$", i)}
+                    <br>
+                    Occ(a, 4) = ${Occ("a", i)}
+                    <br>
+                    Occ(b, 4) = ${Occ("b", i)}
+                    <br>
+                    Occ(n, 4) = ${Occ("n", i)}
+                </div>
+
+                <p>
+                    These prefix counts are the
+                    values that a rank data structure
+                    can store or recover efficiently.
+                </p>
+            `;
+        }
+
+        // Step 5: Full Occ table.
+        else {
+            html = `
+                <h3>Final Result: Complete Occ Table</h3>
+
+                <p>
+                    The complete table gives the
+                    occurrence count of every character
+                    at each possible prefix length.
+                </p>
+
+                ${makeRankTable()}
+
+                <div class="callout">
+                    <p>
+                        <strong>Verified examples:</strong>
+                    </p>
+
+                    <p>
+                        Occ(a, 5) = ${Occ("a", 5)}
+                        <br>
+                        Occ(n, 4) = ${Occ("n", 4)}
+                        <br>
+                        Occ(a, 0) = ${Occ("a", 0)}
+                    </p>
+                </div>
+
+                <p>
+                    In this demonstration, Occ is
+                    calculated by scanning a prefix.
+                    A real FM-Index uses rank-support
+                    structures to answer these queries
+                    without rescanning the entire prefix.
+                </p>
+            `;
+        }
+
+        output.innerHTML = html;
+
+        previous.disabled = step === 0;
+        next.disabled = step === lastStep;
+
+        next.textContent = next.disabled
+            ? "Complete ✓"
+            : "Next step →";
+
+        progress.textContent =
+            `Step ${step} of ${lastStep}`;
+    }
+
+    previous.addEventListener("click", () => {
+        step = Math.max(0, step - 1);
+        showStep();
+    });
+
+    next.addEventListener("click", () => {
+        step = Math.min(lastStep, step + 1);
+        showStep();
+    });
+
+    reset.addEventListener("click", () => {
+        step = 0;
+        showStep();
+    });
+
+    showStep();
+}
 function initBackwardStepper() {
   const host = $("backward-stepper");
 
@@ -2376,6 +2761,7 @@ function render() {
   initInverseBWTStepper();
   initFMColumnsLesson();
   initCArrayStepper();
+  initOccRankStepper();
   initBackwardStepper();
 }
 
