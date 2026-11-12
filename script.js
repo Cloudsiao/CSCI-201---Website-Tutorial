@@ -136,45 +136,54 @@ const lessons = [
         id: "rotations",
         title: "Cyclic Rotations",
         html: `
-          <div class="mini-label">Worked example</div>
-          <h2>Construct BWT from sorted rotations</h2>
+          <div class="mini-label">Interactive BWT Construction</div>
+          <h2>Construct BWT Using Cyclic Rotations</h2>
 
           <p>
-            Generate all cyclic rotations of
-            <code>banana$</code>, sort them lexicographically,
-            and read the last character of each sorted row.
+            We will transform <code>banana$</code> in three steps:
+            generate all cyclic rotations, sort them
+            lexicographically, and extract the last character
+            of each sorted row.
           </p>
-
-          <div class="table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Sorted row</th>
-                  <th>Cyclic rotation</th>
-                  <th>Last column (L)</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr><td>0</td><td><code>$banana</code></td><td><code>a</code></td></tr>
-                <tr><td>1</td><td><code>a$banan</code></td><td><code>n</code></td></tr>
-                <tr><td>2</td><td><code>ana$ban</code></td><td><code>n</code></td></tr>
-                <tr><td>3</td><td><code>anana$b</code></td><td><code>b</code></td></tr>
-                <tr><td>4</td><td><code>banana$</code></td><td><code>$</code></td></tr>
-                <tr><td>5</td><td><code>na$bana</code></td><td><code>a</code></td></tr>
-                <tr><td>6</td><td><code>nana$ba</code></td><td><code>a</code></td></tr>
-              </tbody>
-            </table>
-          </div>
 
           <div class="callout">
             <p>
-              <strong>Result:</strong>
-              BWT(<code>banana$</code>) =
-              <code>annb$aa</code>.
+              <strong>Remember:</strong>
+              The <code>$</code> symbol is a unique end marker
+              and is lexicographically smaller than
+              <code>a</code>, <code>b</code>, and <code>n</code>.
             </p>
           </div>
-        `
-      },
+
+          <div class="stepper" id="bwt-rotation-stepper">
+            <div
+              id="bwt-rotation-output"
+              class="stepper-output"
+              aria-live="polite">
+            </div>
+
+            <div class="stepper-controls">
+              <button type="button" class="btn secondary"
+                      id="bwt-rotation-prev">
+                ← Previous
+              </button>
+
+              <button type="button" class="btn"
+                      id="bwt-rotation-next">
+                Next step →
+              </button>
+
+              <button type="button" class="btn secondary"
+                      id="bwt-rotation-reset">
+                Reset
+              </button>
+
+              <span id="bwt-rotation-progress"
+                class="lesson-position"></span>
+            </div>
+        </div>
+      `
+    },
       {
         id: "suffix-array",
         title: "Suffix Array",
