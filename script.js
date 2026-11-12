@@ -471,21 +471,90 @@ const lessons = [
                 </div>
             `
         },
+
         {
             id: "c-array",
             title: "C Array",
             html: `
                 <div class="mini-label">FM-Index Main Concepts</div>
-                <h2>Understanding the C Array</h2>
+                <h2>Constructing the C Array</h2>
 
                 <p>
-                    The C Array stores the number of characters
-                    lexicographically smaller than each character
-                    in the original string.
+                    The C Array tells us how many characters
+                    in the original string are
+                    <strong>lexicographically smaller</strong>
+                    than a given character.
                 </p>
+
+                <div class="formula">
+                    C[c] = Number of characters smaller than c
+                </div>
+
+                <p>
+                    We use <code>T = banana$</code> and its
+                    sorted first column
+                    <code>F = $aaabnn</code>.
+                </p>
+
+                <div class="callout">
+                    <p>
+                        <strong>Remember:</strong>
+                        The character order is
+                        <code>$ &lt; a &lt; b &lt; n</code>.
+                        All row positions use 0-based indexing.
+                    </p>
+                </div>
+
+                <h3>Interactive C Array Construction</h3>
+
+                <p>
+                    Follow each step to calculate the number
+                    of smaller characters and identify where
+                    each character's block begins in F.
+                </p>
+
+                <div class="stepper" id="c-array-stepper">
+
+                    <div id="c-array-output"
+                         class="stepper-output"
+                         aria-live="polite"></div>
+
+                    <div class="stepper-controls">
+                        <button type="button"
+                                class="btn secondary"
+                                id="c-array-prev">
+                            ← Previous
+                        </button>
+
+                        <button type="button"
+                                class="btn"
+                                id="c-array-next">
+                            Next step →
+                        </button>
+
+                        <button type="button"
+                                class="btn secondary"
+                                id="c-array-reset">
+                            Reset
+                        </button>
+
+                        <span id="c-array-progress"
+                              class="lesson-position"></span>
+                    </div>
+                </div>
+
+                <div class="callout">
+                    <p>
+                        <strong>Why is the C Array important?</strong>
+                        C[c] identifies the starting row of
+                        character c in the sorted first column.
+                        The FM-Index uses this value together
+                        with Occ(c, i) to perform backward
+                        searching.
+                    </p>
+                </div>
             `
         },
-
       {
         id: "occ-rank",
         title: "Occ / Rank Function",
@@ -1860,6 +1929,281 @@ function initFMColumnsLesson() {
 
     showColumns("both");
 }
+
+function initCArrayStepper() {
+    if (!$("c-array-stepper")) return;
+
+    const T = "banana$";
+    const F = [...T].sort().join("");
+
+    // Identify all unique characters in sorted order.
+    const alphabet = [...new Set(T)].sort();
+
+    // Count the frequency of each character.
+    const frequencies = {};
+
+    alphabet.forEach(character => {
+        frequencies[character] = [...T].filter(
+            value => value === character
+        ).length;
+    });
+
+    // Construct the cumulative C Array.
+    let runningTotal = 0;
+
+    const entries = alphabet.map(character => {
+        const count = frequencies[character];
+
+        const entry = {
+            character: character,
+            count: count,
+            cValue: runningTotal,
+            start: runningTotal,
+            end: runningTotal + count
+        };
+
+        runningTotal += count;
+
+        return entry;
+    });
+
+    const output = $("c-array-output");
+    const previous = $("c-array-prev");
+    const next = $("c-array-next");
+    const reset = $("c-array-reset");
+    const progress = $("c-array-progress");
+
+    let step = 0;
+    const lastStep = entries.length + 1;
+
+    // Display the sorted first column.
+    function makeFTable(activeCharacter = null) {
+        const rows = [...F].map((character, i) => `
+            <tr>
+                <td>${i}</td>
+                <td><code>${character}</code></td>
+                <td>
+                    ${character === activeCharacter
+                        ? "← Current character block"
+                        : ""}
+                </td>
+            </tr>
+        `).join("");
+
+        return `
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Row i</th>
+                            <th>F[i]</th>
+                            <th>Observation</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rows}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    // Display C Array values recovered so far.
+    function makeCTable(revealedCount) {
+        const rows = entries.slice(0, revealedCount)
+            .map(entry => `
+                <tr>
+                    <td><code>${entry.character}</code></td>
+                    <td>${entry.count}</td>
+                    <td>${entry.cValue}</td>
+                    <td>[${entry.start}, ${entry.end})</td>
+                </tr>
+            `).join("");
+
+        return `
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Character</th>
+                            <th>Frequency</th>
+                            <th>C[c]</th>
+                            <th>Rows in F</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rows}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    function showStep() {
+        let html = "";
+
+        // Initial step.
+        if (step === 0) {
+            html = `
+                <h3>Start: Examine the First Column</h3>
+
+                <p>
+                    Our original text is <code>${T}</code>.
+                    Sorting its characters produces
+                    <code>F = ${F}</code>.
+                </p>
+
+                ${makeFTable()}
+
+                <p>
+                    Notice that identical characters
+                    appear together in F.
+                </p>
+
+                <p>
+                    We will calculate where each
+                    character's block begins.
+                </p>
+            `;
+        }
+
+        // Calculate C[$], C[a], C[b], and C[n].
+        else if (step <= entries.length) {
+            const entry = entries[step - 1];
+
+            const smallerEntries = entries.slice(
+                0,
+                step - 1
+            );
+
+            const expression = smallerEntries.length
+                ? smallerEntries.map(
+                    item => item.count
+                ).join(" + ")
+                : "0";
+
+            const smallerCharacters = smallerEntries.length
+                ? smallerEntries.map(
+                    item => `<code>${item.character}</code>`
+                ).join(", ")
+                : "none";
+
+            html = `
+                <h3>Step ${step}: Calculate C[${entry.character}]</h3>
+
+                <p>
+                    Current character:
+                    <code>${entry.character}</code>
+                </p>
+
+                <p>
+                    Characters smaller than
+                    <code>${entry.character}</code>:
+                    ${smallerCharacters}
+                </p>
+
+                <p>
+                    Add the frequencies of those
+                    smaller characters.
+                </p>
+
+                <div class="formula">
+                    C[${entry.character}]
+                    = ${expression}
+                    = ${entry.cValue}
+                </div>
+
+                <p>
+                    The character
+                    <code>${entry.character}</code>
+                    occurs ${entry.count}
+                    time(s) in the text.
+                </p>
+
+                <p>
+                    Its block in F begins at
+                    <strong>row ${entry.start}</strong>
+                    and occupies the half-open interval
+                    <code>[${entry.start}, ${entry.end})</code>.
+                </p>
+
+                ${makeFTable(entry.character)}
+
+                <h3>C Array Constructed So Far</h3>
+
+                ${makeCTable(step)}
+            `;
+        }
+
+        // Final summary.
+        else {
+            html = `
+                <h3>Final Result: Complete C Array</h3>
+
+                <p>
+                    We have calculated the starting row
+                    of every character block in F.
+                </p>
+
+                ${makeCTable(entries.length)}
+
+                <div class="example-grid">
+                    <div class="example-box">
+                        <strong>First Column F</strong>
+                        <code>${F}</code>
+                    </div>
+
+                    <div class="example-box">
+                        <strong>C Array</strong>
+                        <code>
+                            ${entries.map(
+                                entry => `C[${entry.character}] = ${entry.cValue}`
+                            ).join(", ")}
+                        </code>
+                    </div>
+                </div>
+
+                <div class="callout">
+                    <p>
+                        <strong>Key observation:</strong>
+                        C[c] does not count occurrences
+                        of c itself. It counts characters
+                        that are smaller than c.
+                    </p>
+                </div>
+            `;
+        }
+
+        output.innerHTML = html;
+
+        previous.disabled = step === 0;
+        next.disabled = step === lastStep;
+
+        next.textContent = next.disabled
+            ? "Complete ✓"
+            : "Next step →";
+
+        progress.textContent =
+            `Step ${step} of ${lastStep}`;
+    }
+
+    previous.addEventListener("click", () => {
+        step = Math.max(0, step - 1);
+        showStep();
+    });
+
+    next.addEventListener("click", () => {
+        step = Math.min(lastStep, step + 1);
+        showStep();
+    });
+
+    reset.addEventListener("click", () => {
+        step = 0;
+        showStep();
+    });
+
+    showStep();
+}
 function initBackwardStepper() {
   const host = $("backward-stepper");
 
@@ -2031,6 +2375,7 @@ function render() {
   initSuffixArrayStepper();
   initInverseBWTStepper();
   initFMColumnsLesson();
+  initCArrayStepper();
   initBackwardStepper();
 }
 
