@@ -910,6 +910,148 @@ function buildButton(label, active, className, clickHandler) {
 // INTERACTIVE FM-INDEX BACKWARD SEARCH
 // ==================================================
 
+function initBWTRotationStepper() {
+  if (!$('bwt-rotation-stepper')) return;
+
+  const T = 'banana$';
+
+  // Generate every cyclic rotation.
+  const rotations = Array.from(
+    { length: T.length },
+    (_, i) => T.slice(i) + T.slice(0, i)
+  );
+
+  // Sort rotations lexicographically.
+  const sorted = [...rotations].sort();
+
+  // Extract the last character of each sorted row.
+  const L = sorted.map(
+    row => row[row.length - 1]
+  ).join('');
+
+  function makeTable(rows, isSorted, showLast) {
+    const body = rows.map((row, i) => `
+      <tr>
+        <td>${isSorted ? i : i + 1}</td>
+        <td><code>${row}</code></td>
+        ${showLast
+          ? `<td><code>${row[row.length - 1]}</code></td>`
+          : ''}
+      </tr>
+    `).join('');
+
+    return `
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>${isSorted ? 'Sorted row' : 'Rotation no.'}</th>
+              <th>${isSorted ? 'Sorted rotation' : 'Cyclic rotation'}</th>
+              ${showLast ? '<th>Last column (L)</th>' : ''}
+            </tr>
+          </thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  const phases = [
+    {
+      title: 'Start: Original String',
+      body: `
+        <p>
+          Our input is <code>${T}</code>, which contains
+          7 characters, including the end marker.
+        </p>
+      `
+    },
+    {
+      title: 'Step 1: Generate All Cyclic Rotations',
+      body: `
+        <p>
+          Move the first character to the end repeatedly.
+          Each rotation still contains all 7 characters.
+        </p>
+        ${makeTable(rotations, false, false)}
+      `
+    },
+    {
+      title: 'Step 2: Sort the Rotations',
+      body: `
+        <p>
+          Sort all rotations lexicographically using
+          <code>$ &lt; a &lt; b &lt; n</code>.
+        </p>
+        ${makeTable(sorted, true, false)}
+      `
+    },
+    {
+      title: 'Step 3: Extract the Last Column',
+      body: `
+        <p>
+          Read the last character of every sorted
+          rotation, from row 0 through row 6.
+        </p>
+
+        ${makeTable(sorted, true, true)}
+
+        <div class="callout">
+          <p>
+            <strong>Final BWT:</strong>
+            <code>${L}</code>
+          </p>
+          <p>
+            BWT(<code>${T}</code>) =
+            <code>${L}</code>
+          </p>
+        </div>
+      `
+    }
+  ];
+
+  let step = 0;
+
+  const output = $('bwt-rotation-output');
+  const previous = $('bwt-rotation-prev');
+  const next = $('bwt-rotation-next');
+  const reset = $('bwt-rotation-reset');
+  const progress = $('bwt-rotation-progress');
+
+  function showStep() {
+    output.innerHTML = `
+      <h3>${phases[step].title}</h3>
+      ${phases[step].body}
+    `;
+
+    previous.disabled = step === 0;
+    next.disabled = step === phases.length - 1;
+
+    next.textContent = next.disabled
+      ? 'Complete ✓'
+      : 'Next step →';
+
+    progress.textContent =
+      `Step ${step} of ${phases.length - 1}`;
+  }
+
+  previous.addEventListener('click', () => {
+    step--;
+    showStep();
+  });
+
+  next.addEventListener('click', () => {
+    step++;
+    showStep();
+  });
+
+  reset.addEventListener('click', () => {
+    step = 0;
+    showStep();
+  });
+
+  showStep();
+}
 function initBackwardStepper() {
   const host = $("backward-stepper");
 
@@ -1077,6 +1219,7 @@ function render() {
     `#/${next.section.id}/${next.topic.id}`;
 
   // Initialize interactive lessons.
+  initBWTRotationStepper();
   initBackwardStepper();
 }
 
