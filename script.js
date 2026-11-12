@@ -280,9 +280,29 @@ const lessons = [
       </p>
     </div>
   `
+},
+{
+  id: "inverse",
+  title: "Inverse BWT",
+  html: `
+    <div class="mini-label">Reversibility</div>
+    <h2>Reconstruct the Original String</h2>
+
+    <p>
+      Inverse BWT uses LF Mapping to reconstruct
+      the original string from its BWT output.
+    </p>
+
+    <p>
+      We will demonstrate how
+      <code>annb$aa</code> is transformed
+      back into <code>banana$</code>.
+    </p>
+  `
 }
-    ]  
-  },  
+    ]  // Closes the BWT topics array
+  },   // Closes the BWT section
+
   // ==================================================
   // 3. FM-INDEX
   // ==================================================
@@ -1083,6 +1103,298 @@ function initBWTRotationStepper() {
 
   showStep();
 }
+
+function initSuffixArrayStepper() {
+  if (!$("suffix-array-stepper")) return;
+
+  const T = "banana$";
+  const n = T.length;
+
+  // Step 1: Generate all suffixes.
+  const suffixes = Array.from(
+    { length: n },
+    (_, i) => ({
+      start: i,
+      text: T.slice(i)
+    })
+  );
+
+  // Step 2: Sort suffixes lexicographically.
+  const sorted = [...suffixes].sort((a, b) =>
+    a.text < b.text ? -1 :
+    a.text > b.text ? 1 : 0
+  );
+
+  // Step 3: Construct the suffix array.
+  const SA = sorted.map(item => item.start);
+
+  // Step 4: Determine each BWT character.
+  const rows = sorted.map((item, i) => {
+    const precedingIndex = (item.start - 1 + n) % n;
+
+    return {
+      row: i,
+      suffix: item.text,
+      sa: item.start,
+      precedingIndex: precedingIndex,
+      character: T[precedingIndex]
+    };
+  });
+
+  const BWT = rows.map(row => row.character).join("");
+
+  const output = $("suffix-array-output");
+  const previous = $("suffix-array-prev");
+  const next = $("suffix-array-next");
+  const reset = $("suffix-array-reset");
+  const progress = $("suffix-array-progress");
+
+  let step = 0;
+  const lastStep = n + 3;
+
+  // Table showing the original or sorted suffixes.
+  function suffixTable(items, isSorted) {
+    return `
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>${isSorted ? "Row i" : "Start index"}</th>
+              <th>Suffix</th>
+              ${isSorted ? "<th>SA[i]</th>" : ""}
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map((item, i) => `
+              <tr>
+                <td>${isSorted ? i : item.start}</td>
+                <td><code>${item.text}</code></td>
+                ${isSorted ? `<td>${item.start}</td>` : ""}
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  // Table showing BWT extraction row by row.
+  function extractionTable(revealed, highlightedRow) {
+    return `
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Row i</th>
+              <th>Sorted suffix</th>
+              <th>SA[i]</th>
+              <th>Preceding index</th>
+              <th>L[i]</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(row => `
+              <tr ${row.row === highlightedRow
+                ? 'style="background:#e9f6f3"'
+                : ""}>
+                <td>${row.row}</td>
+                <td><code>${row.suffix}</code></td>
+                <td>${row.sa}</td>
+                <td>${row.row < revealed
+                  ? row.precedingIndex
+                  : "—"}</td>
+                <td>${row.row < revealed
+                  ? `<code>${row.character}</code>`
+                  : "—"}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  function showStep() {
+    let body = "";
+
+    if (step === 0) {
+      body = `
+        <h3>Start: Original String</h3>
+        <p>
+          Our input is <code>${T}</code>.
+          It contains <strong>${n} characters</strong>,
+          including the unique end marker.
+        </p>
+
+        <div class="example-grid">
+          <div class="example-box">
+            <strong>Original string T</strong>
+            <code>${T}</code>
+          </div>
+          <div class="example-box">
+            <strong>Length n</strong>
+            <code>${n}</code>
+          </div>
+        </div>
+      `;
+    }
+
+    else if (step === 1) {
+      body = `
+        <h3>Step 1: Generate All Suffixes</h3>
+
+        <p>
+          Starting at every position in
+          <code>${T}</code>, take the substring
+          from that position to the end.
+        </p>
+
+        ${suffixTable(suffixes, false)}
+
+        <p>
+          Notice that each suffix has a different
+          length. Unlike cyclic rotations,
+          suffixes do not wrap around.
+        </p>
+      `;
+    }
+
+    else if (step === 2) {
+      body = `
+        <h3>Step 2: Sort the Suffixes</h3>
+
+        <p>
+          Sort the suffixes lexicographically
+          using <code>$ &lt; a &lt; b &lt; n</code>.
+          Record each suffix's original starting
+          position in the suffix array.
+        </p>
+
+        ${suffixTable(sorted, true)}
+
+        <div class="callout">
+          <p>
+            <strong>Suffix Array:</strong>
+            <code>SA = [${SA.join(", ")}]</code>
+          </p>
+        </div>
+      `;
+    }
+
+    else if (step >= 3 && step < 3 + n) {
+      const current = step - 3;
+      const row = rows[current];
+
+      body = `
+        <h3>Step 3: Calculate BWT Row ${row.row}</h3>
+
+        <p>
+          The suffix in sorted row
+          <strong>${row.row}</strong> originally
+          begins at position
+          <strong>${row.sa}</strong>.
+        </p>
+
+        <p>
+          Find the character immediately
+          preceding that position in T.
+        </p>
+
+        <div class="formula">
+          L[${row.row}] =
+          T[(${row.sa} - 1 + ${n}) mod ${n}]
+          <br>
+          = T[${row.precedingIndex}]
+          <br>
+          = ${row.character}
+        </div>
+
+        ${row.sa === 0 ? `
+          <div class="callout">
+            <p>
+              <strong>Wraparound:</strong>
+              Since SA[${row.row}] = 0,
+              we take the final character
+              of T, which is <code>$</code>.
+            </p>
+          </div>
+        ` : ""}
+
+        ${extractionTable(current + 1, current)}
+
+        <p>
+          BWT characters recovered so far:
+          <span class="code-sequence">
+            ${rows.slice(0, current + 1)
+              .map(item => item.character).join("")}
+          </span>
+        </p>
+      `;
+    }
+
+    else {
+      body = `
+        <h3>Final Result: Suffix Array to BWT</h3>
+
+        <p>
+          We have calculated the character
+          preceding every suffix in sorted order.
+        </p>
+
+        ${extractionTable(n, -1)}
+
+        <div class="example-grid">
+          <div class="example-box">
+            <strong>Suffix Array</strong>
+            <code>[${SA.join(", ")}]</code>
+          </div>
+          <div class="example-box">
+            <strong>BWT Output</strong>
+            <code>${BWT}</code>
+          </div>
+        </div>
+
+        <div class="callout">
+          <p>
+            <strong>Verified:</strong>
+            Both cyclic rotations and suffix-array
+            construction produce the same result:
+            <code>${BWT}</code>.
+          </p>
+        </div>
+      `;
+    }
+
+    output.innerHTML = body;
+
+    previous.disabled = step === 0;
+    next.disabled = step === lastStep;
+
+    next.textContent = next.disabled
+      ? "Complete ✓"
+      : "Next step →";
+
+    progress.textContent =
+      `Step ${step} of ${lastStep}`;
+  }
+
+  previous.addEventListener("click", () => {
+    step = Math.max(0, step - 1);
+    showStep();
+  });
+
+  next.addEventListener("click", () => {
+    step = Math.min(lastStep, step + 1);
+    showStep();
+  });
+
+  reset.addEventListener("click", () => {
+    step = 0;
+    showStep();
+  });
+
+  showStep();
+}
 function initBackwardStepper() {
   const host = $("backward-stepper");
 
@@ -1251,6 +1563,7 @@ function render() {
 
   // Initialize interactive lessons.
   initBWTRotationStepper();
+  initSuffixArrayStepper();
   initBackwardStepper();
 }
 
