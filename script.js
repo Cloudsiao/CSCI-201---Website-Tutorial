@@ -184,74 +184,105 @@ const lessons = [
         </div>
       `
     },
+
       {
         id: "suffix-array",
         title: "Suffix Array",
         html: `
-          <div class="mini-label">Faster BWT construction</div>
-          <h2>Using the suffix array</h2>
+          <div class="mini-label">Interactive BWT Construction</div>
+          <h2>Construct BWT Using a Suffix Array</h2>
 
           <p>
-            The suffix array records the starting positions
-            of suffixes in lexicographic order.
-            For <code>banana$</code>, using zero-based positions:
+            We previously constructed the BWT of
+            <code>banana$</code> using cyclic rotations.
+            Another method uses a
+            <strong>Suffix Array (SA)</strong>.
           </p>
 
           <p>
-            <span class="code-sequence">
-              SA = [6, 5, 3, 1, 0, 4, 2]
-            </span>
-          </p>
-
-          <p>
-            The preceding character of the suffix at row
-            <code>i</code> gives the BWT entry:
-          </p>
-
-          <div class="formula">
-            L[i] = T[(SA[i] - 1) mod n]
-          </div>
-
-          <p>
-            This yields <code>annb$aa</code>.
-            We will expand this into a complete
-            row-by-row table.
-          </p>
-        `
-      },
-      {
-        id: "inverse",
-        title: "Inverse BWT",
-        html: `
-          <div class="mini-label">Reversibility</div>
-          <h2>Reconstruct the original string</h2>
-
-          <p>
-            Inverse BWT uses LF Mapping to move between
-            rows representing adjacent text positions.
-            Starting from the row containing
-            <code>$</code> in the last column,
-            we repeatedly follow LF.
-          </p>
-
-          <p>
-            <span class="code-sequence">
-              4 → 0 → 1 → 5 → 2 → 6 → 3
-            </span>
+            A suffix is a substring that begins at
+            a particular position in the original
+            string and continues to its end.
+            The suffix array records the starting
+            positions of suffixes after they have
+            been sorted lexicographically.
           </p>
 
           <div class="callout">
             <p>
-              <strong>Result:</strong>
-              Writing characters in reverse order
-              reconstructs <code>banana$</code>.
+              <strong>Remember:</strong>
+              We use 0-based indexing throughout.
+              A suffix is not a cyclic rotation:
+              it does not wrap around to the
+              beginning of the string.
             </p>
           </div>
-        `
-      }
-    ]
-  },
 
+    <h3>BWT Construction Formula</h3>
+
+    <div class="formula">
+      L[i] = T[(SA[i] - 1 + n) mod n]
+    </div>
+
+    <p>
+      Where:
+    </p>
+
+    <ul>
+      <li><strong>T</strong> = original string</li>
+      <li><strong>n</strong> = length of T</li>
+      <li><strong>i</strong> = row index in the sorted suffix array</li>
+      <li><strong>SA[i]</strong> = original starting position of the suffix</li>
+      <li><strong>L[i]</strong> = resulting BWT character</li>
+    </ul>
+
+    <div class="stepper" id="suffix-array-stepper">
+      <div class="mini-label">
+        Interactive Suffix Array Construction
+      </div>
+
+      <div id="suffix-array-output"
+           class="stepper-output"
+           aria-live="polite"></div>
+
+      <div class="stepper-controls">
+        <button type="button"
+                class="btn secondary"
+                id="suffix-array-prev">
+          ← Previous
+        </button>
+
+        <button type="button"
+                class="btn"
+                id="suffix-array-next">
+          Next step →
+        </button>
+
+        <button type="button"
+                class="btn secondary"
+                id="suffix-array-reset">
+          Reset
+        </button>
+
+        <span id="suffix-array-progress"
+              class="lesson-position"></span>
+      </div>
+    </div>
+
+    <div class="callout">
+      <p>
+        <strong>Why use this method?</strong>
+        The suffix-array approach avoids storing
+        the complete cyclic rotation matrix.
+        Efficient suffix-array construction
+        algorithms are more suitable for
+        large genomic sequences.
+      </p>
+    </div>
+  `
+}
+    ]  
+  },  
   // ==================================================
   // 3. FM-INDEX
   // ==================================================
