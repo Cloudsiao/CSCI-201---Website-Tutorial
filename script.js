@@ -18,7 +18,7 @@ const lessons = [
     description: "Why compact data structures matter when searching genomic sequences.",
     topics: [
       {
-        id: "overview",
+        : "overview",
         title: "Overview",
         html: `
           <div class="mini-label">Start here</div>
@@ -764,65 +764,130 @@ const lessons = [
                 </div>
             `
         },
-      {
-        id: "backward-search",
-        title: "Backward Search",
-        html: `
-          <div class="mini-label">Interactive walkthrough</div>
-          <h2>Search for ana in banana$</h2>
+        {
+            id: "backward-search",
+            title: "Backward Search",
+            html: `
+                <div class="mini-label">FM-Index Pattern Matching</div>
+                <h2>Backward Search: Finding "ana" in "banana$"</h2>
 
-          <p>
-            The FM-Index reads the pattern from right
-            to left and updates a half-open suffix-array
-            interval <code>[sp, ep)</code>.
-          </p>
+                <p>
+                    The FM-Index finds occurrences of a pattern
+                    by processing its characters from
+                    <strong>right to left</strong>.
+                </p>
 
-          <p>
-            If the interval becomes empty,
-            there are no exact matches.
-          </p>
+                <p>
+                    Instead of examining every position in
+                    the original text, it maintains an interval
+                    of suffix-array rows that match the
+                    processed part of the pattern.
+                </p>
 
-          <div class="formula">
-            sp' = C[c] + Occ(c, sp)<br>
-            ep' = C[c] + Occ(c, ep)
-          </div>
+                <div class="example-grid">
+                    <div class="example-box">
+                        <strong>Original text T</strong>
+                        <code>banana$</code>
+                    </div>
 
-          <div class="stepper" id="backward-stepper">
-            <div class="mini-label">
-              Click through the search
-            </div>
+                    <div class="example-box">
+                        <strong>Search pattern P</strong>
+                        <code>ana</code>
+                    </div>
+                </div>
 
-            <div id="stepper-output"
-                 class="stepper-output"
-                 aria-live="polite"></div>
+                <h3>Backward Search Formulas</h3>
 
-            <div class="stepper-controls">
-              <button class="btn" id="stepper-next">
-                Next step →
-              </button>
+                <div class="formula">
+                    SP' = C[c] + Occ(c, SP)
+                </div>
 
-              <button class="btn secondary"
-                      id="stepper-reset">
-                Reset
-              </button>
+                <div class="formula">
+                    EP' = C[c] + Occ(c, EP)
+                </div>
 
-              <span id="stepper-progress"
-                    class="lesson-position"></span>
-            </div>
-          </div>
+                <ul>
+                    <li>
+                        <strong>SP:</strong>
+                        Starting row of the current interval.
+                    </li>
+                    <li>
+                        <strong>EP:</strong>
+                        Exclusive ending row of the interval.
+                    </li>
+                    <li>
+                        <strong>c:</strong>
+                        Next pattern character, read from right to left.
+                    </li>
+                    <li>
+                        <strong>C[c]:</strong>
+                        Number of characters smaller than c.
+                    </li>
+                    <li>
+                        <strong>Occ(c, i):</strong>
+                        Number of c characters in L[0:i].
+                    </li>
+                </ul>
 
-          <p>
-            The final interval contains two rows,
-            corresponding to matches at text
-            positions 1 and 3 (zero-based).
-          </p>
+                <div class="callout">
+                    <p>
+                        <strong>Remember:</strong>
+                        We use a half-open interval
+                        <code>[SP, EP)</code>.
+                        Row SP is included, but row EP
+                        is excluded.
+                    </p>
 
-          <p>
-            Locating those positions requires
-            suffix-array information or sampling.
-          </p>
-        `
-      },
+                    <p>
+                        The number of matching rows is
+                        <code>EP - SP</code>.
+                        If SP = EP, no exact matches remain.
+                    </p>
+                </div>
+
+                <h3>Interactive Backward Search</h3>
+
+                <div class="stepper" id="backward-stepper">
+
+                    <div id="stepper-output"
+                         class="stepper-output"
+                         aria-live="polite"></div>
+
+                    <div class="stepper-controls">
+                        <button type="button"
+                                class="btn secondary"
+                                id="stepper-prev">
+                            ← Previous
+                        </button>
+
+                        <button type="button"
+                                class="btn"
+                                id="stepper-next">
+                            Next step →
+                        </button>
+
+                        <button type="button"
+                                class="btn secondary"
+                                id="stepper-reset">
+                            Reset
+                        </button>
+
+                        <span id="stepper-progress"
+                              class="lesson-position"></span>
+                    </div>
+                </div>
+
+                <div class="callout">
+                    <p>
+                        <strong>Important distinction:</strong>
+                        Backward search counts matching suffix-array
+                        rows. Recovering their positions in the
+                        original text requires suffix-array
+                        information or an SA-sampling mechanism.
+                    </p>
+                </div>
+            `
+        },
       {
         id: "rank-checkpoints",
         title: "Rank Checkpoints",
@@ -3008,96 +3073,313 @@ function initLFMappingStepper() {
 
     showStep();
 }
+
 function initBackwardStepper() {
-  const host = $("backward-stepper");
+    const host = $("backward-stepper");
+    if (!host) return;
 
-  if (!host) return;
+    const T = "banana$";
+    const L = "annb$aa";
+    const P = "ana";
+    const n = T.length;
 
-  const steps = [
-    {
-      char: null,
-      interval: "[0, 7)",
-      count: 7,
-      text:
-        "Start with every suffix-array row. " +
-        "Pattern: ana. Process right to left."
-    },
-    {
-      char: "a",
-      interval: "[1, 4)",
-      count: 3,
-      text:
-        "Process a: sp = C[a] + Occ(a, 0) = 1; " +
-        "ep = C[a] + Occ(a, 7) = 4."
-    },
-    {
-      char: "n",
-      interval: "[5, 7)",
-      count: 2,
-      text:
-        "Process n: sp = C[n] + Occ(n, 1) = 5; " +
-        "ep = C[n] + Occ(n, 4) = 7."
-    },
-    {
-      char: "a",
-      interval: "[2, 4)",
-      count: 2,
-      text:
-        "Process a: sp = C[a] + Occ(a, 5) = 2; " +
-        "ep = C[a] + Occ(a, 7) = 4. " +
-        "Two matches remain."
-    }
-  ];
-
-  let current = 0;
-
-  const output = $("stepper-output");
-  const next = $("stepper-next");
-  const reset = $("stepper-reset");
-  const progress = $("stepper-progress");
-
-  const renderStep = () => {
-    const state = steps[current];
-
-    output.innerHTML = `
-      <strong>
-        ${state.char === null
-          ? "Initial interval"
-          : `Character searched: ${state.char}`}
-      </strong>
-      <br>
-      <span class="interval">${state.interval}</span>
-      <small>(${state.count} matching rows)</small>
-      <p>${state.text}</p>
-    `;
-
-    progress.textContent =
-      `Step ${current} of ${steps.length - 1}`;
-
-    next.disabled =
-      current === steps.length - 1;
-
-    next.textContent =
-      current === steps.length - 1
-        ? "Complete ✓"
-        : "Next step →";
-  };
-
-  next.addEventListener("click", () => {
-    current = Math.min(
-      current + 1,
-      steps.length - 1
+    // Build the suffix array for visual explanation.
+    // A production FM-Index need not store the full SA.
+    const suffixes = Array.from({ length: n }, (_, i) => ({
+        start: i,
+        suffix: T.slice(i)
+    })).sort((a, b) =>
+        a.suffix < b.suffix ? -1 : a.suffix > b.suffix ? 1 : 0
     );
 
-    renderStep();
-  });
+    const F = [...L].sort().join("");
+    const C = {};
 
-  reset.addEventListener("click", () => {
-    current = 0;
-    renderStep();
-  });
+    for (let i = 0; i < n; i++) {
+        if (C[F[i]] === undefined) {
+            C[F[i]] = i;
+        }
+    }
 
-  renderStep();
+    // Exclusive-prefix rank: count c in L[0:i].
+    function Occ(c, i) {
+        return [...L.slice(0, i)].filter(
+            x => x === c
+        ).length;
+    }
+
+    let sp = 0;
+    let ep = n;
+
+    const steps = [
+        {
+            sp: sp,
+            ep: ep,
+            character: null,
+            processed: ""
+        }
+    ];
+
+    // Search the pattern from right to left.
+    for (let j = P.length - 1; j >= 0; j--) {
+        const c = P[j];
+
+        const oldSp = sp;
+        const oldEp = ep;
+
+        const cValue = C[c];
+        const occSp = Occ(c, oldSp);
+        const occEp = Occ(c, oldEp);
+
+        sp = cValue + occSp;
+        ep = cValue + occEp;
+
+        steps.push({
+            character: c,
+            processed: P.slice(j),
+            oldSp: oldSp,
+            oldEp: oldEp,
+            cValue: cValue,
+            occSp: occSp,
+            occEp: occEp,
+            sp: sp,
+            ep: ep
+        });
+    }
+
+    const output = $("stepper-output");
+    const previous = $("stepper-prev");
+    const next = $("stepper-next");
+    const reset = $("stepper-reset");
+    const progress = $("stepper-progress");
+
+    let step = 0;
+
+    // Show the suffix-array rows inside the current interval.
+    function makeSuffixTable(state) {
+        const rows = suffixes.map((entry, i) => {
+            const selected = i >= state.sp && i < state.ep;
+
+            return `
+                <tr style="${selected
+                    ? 'background:#e9f6f3;'
+                    : ''}">
+                    <td>${i}</td>
+                    <td><code>${entry.suffix}</code></td>
+                    <td>${entry.start}</td>
+                    <td>
+                        ${selected ? "Candidate" : "—"}
+                    </td>
+                </tr>
+            `;
+        }).join("");
+
+        return `
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Row i</th>
+                            <th>Sorted suffix</th>
+                            <th>SA[i]</th>
+                            <th>Current interval</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        ${rows}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    function showStep() {
+        const state = steps[step];
+
+        let explanation = "";
+
+        // Initial interval.
+        if (step === 0) {
+            explanation = `
+                <h3>Start: All Suffix-Array Rows</h3>
+
+                <p>
+                    Pattern <code>P = ${P}</code>
+                    has ${P.length} characters.
+                </p>
+
+                <p>
+                    Start with the interval
+                    <code>[SP, EP) = [0, ${n})</code>.
+                    All ${n} suffix-array rows are
+                    initially candidates.
+                </p>
+
+                <p>
+                    We will process the pattern
+                    from <strong>right to left</strong>:
+                    <code>a → n → a</code>.
+                </p>
+            `;
+        }
+
+        // Calculate the new SP and EP boundaries.
+        else {
+            explanation = `
+                <h3>
+                    Step ${step}: Search for '${state.character}'
+                </h3>
+
+                <p>
+                    Processed pattern suffix:
+                    <code>${state.processed}</code>.
+                </p>
+
+                <p>
+                    Previous interval:
+                    <code>[${state.oldSp}, ${state.oldEp})</code>.
+                </p>
+
+                <p>
+                    To calculate the new SP,
+                    count occurrences of
+                    <code>${state.character}</code>
+                    in the prefix
+                    <code>L[0:${state.oldSp}] =
+                    ${L.slice(0, state.oldSp) || "∅"}</code>.
+                </p>
+
+                <p>
+                    To calculate the new EP,
+                    count occurrences of
+                    <code>${state.character}</code>
+                    in the prefix
+                    <code>L[0:${state.oldEp}] =
+                    ${L.slice(0, state.oldEp) || "∅"}</code>.
+                </p>
+
+                <h3>Calculate SP</h3>
+
+                <div class="formula">
+                    SP' = C[${state.character}]
+                    + Occ(${state.character}, ${state.oldSp})
+                    <br>
+                    = ${state.cValue} + ${state.occSp}
+                    <br>
+                    = ${state.sp}
+                </div>
+
+                <h3>Calculate EP</h3>
+
+                <div class="formula">
+                    EP' = C[${state.character}]
+                    + Occ(${state.character}, ${state.oldEp})
+                    <br>
+                    = ${state.cValue} + ${state.occEp}
+                    <br>
+                    = ${state.ep}
+                </div>
+            `;
+        }
+
+        const count = state.ep - state.sp;
+        const done = step === P.length;
+
+        // Locate the matches using the full SA for teaching.
+        const positions = suffixes.slice(
+            state.sp,
+            state.ep
+        ).map(entry => entry.start).sort(
+            (a, b) => a - b
+        );
+
+        output.innerHTML = `
+            ${explanation}
+
+            <p>
+                <strong>Current half-open interval:</strong>
+                <span class="interval">
+                    [${state.sp}, ${state.ep})
+                </span>
+
+                (${count} matching
+                row${count === 1 ? "" : "s"})
+            </p>
+
+            ${makeSuffixTable(state)}
+
+            ${done ? `
+                <div class="callout">
+                    <p>
+                        <strong>
+                            Backward Search Complete!
+                        </strong>
+                    </p>
+
+                    <p>
+                        The final interval is
+                        <code>
+                            [${state.sp}, ${state.ep})
+                        </code>.
+                    </p>
+
+                    <p>
+                        Number of matches:
+                    </p>
+
+                    <div class="formula">
+                        EP - SP
+                        = ${state.ep} - ${state.sp}
+                        = ${count}
+                    </div>
+
+                    <p>
+                        Using the suffix array for this
+                        demonstration, the original
+                        starting positions are
+                        <code>
+                            ${positions.join(", ") || "none"}
+                        </code>
+                        (0-based).
+                    </p>
+
+                    <p>
+                        A compressed FM-Index can recover
+                        these positions using sampled
+                        suffix-array values and LF Mapping.
+                    </p>
+                </div>
+            ` : ""}
+        `;
+
+        previous.disabled = step === 0;
+        next.disabled = done || count === 0;
+
+        next.textContent = next.disabled
+            ? "Complete ✓"
+            : "Next step →";
+
+        progress.textContent =
+            `Step ${step} of ${P.length}`;
+    }
+
+    previous.addEventListener("click", () => {
+        step = Math.max(0, step - 1);
+        showStep();
+    });
+
+    next.addEventListener("click", () => {
+        step = Math.min(P.length, step + 1);
+        showStep();
+    });
+
+    reset.addEventListener("click", () => {
+        step = 0;
+        showStep();
+    });
+
+    showStep();
 }
 
 // ==================================================
