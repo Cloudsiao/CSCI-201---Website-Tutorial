@@ -655,43 +655,115 @@ const lessons = [
                 </div>
             `
         },
-      {
-        id: "lf",
-        title: "LF Mapping",
-        html: `
-          <div class="mini-label">Connecting F and L</div>
-          <h2>LF Mapping</h2>
 
-          <p>
-            LF Mapping identifies the corresponding
-            row in the first column using information
-            from the last column.
-          </p>
+        {
+            id: "lf",
+            title: "LF Mapping",
+            html: `
+                <div class="mini-label">FM-Index Main Concepts</div>
+                <h2>Understanding LF Mapping</h2>
 
-          <div class="formula">
-            LF(i) = C[L[i]] + Occ(L[i], i)
-          </div>
+                <p>
+                    <strong>Last-to-First (LF) Mapping</strong>
+                    connects a character in the BWT's last
+                    column (L) to the corresponding occurrence
+                    of that character in the first column (F).
+                </p>
 
-          <p>
-            For <code>L = annb$aa</code>,
-            row <code>i = 5</code> contains
-            <code>a</code>.
-          </p>
+                <div class="formula">
+                    LF(i) = C[L[i]] + Occ(L[i], i)
+                </div>
 
-          <p>
-            <span class="code-sequence">
-              LF(5) = C[a] + Occ(a,5) = 1 + 1 = 2
-            </span>
-          </p>
+                <ul>
+                    <li>
+                        <strong>i:</strong> Current row index.
+                    </li>
+                    <li>
+                        <strong>L[i]:</strong> Character at row i
+                        in the BWT's last column.
+                    </li>
+                    <li>
+                        <strong>C[L[i]]:</strong> Starting row
+                        of that character's block in F.
+                    </li>
+                    <li>
+                        <strong>Occ(L[i], i):</strong> Number of
+                        occurrences before row i in L.
+                    </li>
+                    <li>
+                        <strong>LF(i):</strong> Destination
+                        row in F.
+                    </li>
+                </ul>
 
-          <p>
-            The resulting value is a
-            <strong>row index</strong>,
-            not the character's position
-            in the original text.
-          </p>
-        `
-      },
+                <div class="callout">
+                    <p>
+                        <strong>Remember:</strong>
+                        All row indices are 0-based.
+                        Occ excludes position i itself.
+                    </p>
+
+                    <p>
+                        LF(i) produces a row index,
+                        not a position in the original text.
+                    </p>
+                </div>
+
+                <h3>Interactive LF Mapping</h3>
+
+                <p>
+                    Start from the row containing
+                    <code>$</code> in L.
+                    Follow each LF mapping and examine
+                    how C and Occ determine the next row.
+                </p>
+
+                <div class="stepper" id="lf-mapping-stepper">
+
+                    <div id="lf-mapping-output"
+                         class="stepper-output"
+                         aria-live="polite"></div>
+
+                    <div class="stepper-controls">
+                        <button type="button"
+                                class="btn secondary"
+                                id="lf-mapping-prev">
+                            ← Previous
+                        </button>
+
+                        <button type="button"
+                                class="btn"
+                                id="lf-mapping-next">
+                            Next step →
+                        </button>
+
+                        <button type="button"
+                                class="btn secondary"
+                                id="lf-mapping-reset">
+                            Reset
+                        </button>
+
+                        <span id="lf-mapping-progress"
+                              class="lesson-position"></span>
+                    </div>
+                </div>
+
+                <div class="callout">
+                    <p>
+                        <strong>Why is LF Mapping important?</strong>
+                        It allows us to navigate between
+                        corresponding rows in F and L
+                        using only character counts and
+                        rank queries.
+                    </p>
+
+                    <p>
+                        This relationship supports inverse
+                        BWT and FM-Index searching.
+                    </p>
+                </div>
+            `
+        },
       {
         id: "backward-search",
         title: "Backward Search",
@@ -2589,6 +2661,353 @@ function initOccRankStepper() {
 
     showStep();
 }
+
+function initLFMappingStepper() {
+    if (!$("lf-mapping-stepper")) return;
+
+    const L = "annb$aa";
+    const n = L.length;
+
+    // The F column is the sorted BWT string.
+    const F = [...L].sort().join("");
+
+    // Construct C from the first position
+    // of each distinct character in F.
+    const C = {};
+
+    for (let i = 0; i < n; i++) {
+        if (C[F[i]] === undefined) {
+            C[F[i]] = i;
+        }
+    }
+
+    // Occ(c, i) counts occurrences of c
+    // in the first i characters of L.
+    function Occ(c, i) {
+        return [...L.slice(0, i)].filter(
+            character => character === c
+        ).length;
+    }
+
+    // LF mapping formula.
+    function LF(i) {
+        const character = L[i];
+
+        return C[character] + Occ(character, i);
+    }
+
+    // Construct the complete LF mapping table.
+    const mappings = Array.from(
+        { length: n },
+        (_, i) => ({
+            row: i,
+            character: L[i],
+            cValue: C[L[i]],
+            occValue: Occ(L[i], i),
+            destination: LF(i)
+        })
+    );
+
+    // Follow LF starting from the $ row.
+    let currentRow = L.indexOf("$");
+
+    const path = [];
+
+    for (let i = 0; i < n; i++) {
+        path.push(currentRow);
+        currentRow = LF(currentRow);
+    }
+
+    const output = $("lf-mapping-output");
+    const previous = $("lf-mapping-prev");
+    const next = $("lf-mapping-next");
+    const reset = $("lf-mapping-reset");
+    const progress = $("lf-mapping-progress");
+
+    let step = 0;
+    const lastStep = n + 1;
+
+    // Display F and L side by side.
+    // Blue highlights the current L row.
+    // Green highlights the destination F row.
+    function makeFLTable(sourceRow = -1, targetRow = -1) {
+        const rows = Array.from({ length: n }, (_, i) => `
+            <tr>
+                <td>${i}</td>
+
+                <td style="${i === targetRow
+                    ? 'background:#e9f6f3;font-weight:bold;'
+                    : ''}">
+                    <code>${F[i]}</code>
+                </td>
+
+                <td style="${i === sourceRow
+                    ? 'background:#eaf0ff;font-weight:bold;'
+                    : ''}">
+                    <code>${L[i]}</code>
+                </td>
+            </tr>
+        `).join("");
+
+        return `
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Row i</th>
+                            <th>F[i]</th>
+                            <th>L[i]</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        ${rows}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    // Display all LF mapping results.
+    function makeMappingTable() {
+        const rows = mappings.map(item => `
+            <tr>
+                <td>${item.row}</td>
+                <td><code>${item.character}</code></td>
+                <td>${item.cValue}</td>
+                <td>${item.occValue}</td>
+                <td><strong>${item.destination}</strong></td>
+            </tr>
+        `).join("");
+
+        return `
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>i</th>
+                            <th>L[i]</th>
+                            <th>C[L[i]]</th>
+                            <th>Occ(L[i], i)</th>
+                            <th>LF(i)</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        ${rows}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    function showStep() {
+        let html = "";
+
+        // Step 0: Introduce the two columns.
+        if (step === 0) {
+            html = `
+                <h3>Start: Compare F and L</h3>
+
+                <p>
+                    We are given:
+                    <code>L = ${L}</code>
+                </p>
+
+                <p>
+                    Sorting its characters produces:
+                    <code>F = ${F}</code>
+                </p>
+
+                ${makeFLTable()}
+
+                <p>
+                    Each occurrence of a character in L
+                    corresponds to the same-numbered
+                    occurrence of that character in F.
+                </p>
+
+                <div class="callout">
+                    <p>
+                        <strong>Starting point:</strong>
+                        The unique end marker
+                        <code>$</code> appears in L
+                        at row <strong>${path[0]}</strong>.
+                    </p>
+                </div>
+            `;
+        }
+
+        // Steps 1-7: Calculate one LF mapping at a time.
+        else if (step <= n) {
+            const i = path[step - 1];
+            const character = L[i];
+
+            const cValue = C[character];
+            const occValue = Occ(character, i);
+            const destination = LF(i);
+
+            const prefix = L.slice(0, i) || "∅";
+            const occurrenceNumber = occValue + 1;
+
+            html = `
+                <h3>
+                    Step ${step}: Calculate LF(${i})
+                </h3>
+
+                <p>
+                    We are currently at
+                    <strong>row ${i}</strong>.
+                </p>
+
+                <p>
+                    The character at this row is:
+                    <code>L[${i}] = ${character}</code>.
+                </p>
+
+                ${makeFLTable(i, destination)}
+
+                <p>
+                    First, find the starting position
+                    of character
+                    <code>${character}</code> in F.
+                </p>
+
+                <div class="formula">
+                    C[${character}] = ${cValue}
+                </div>
+
+                <p>
+                    Next, count occurrences of
+                    <code>${character}</code> before
+                    position ${i} in L.
+                </p>
+
+                <p>
+                    Prefix examined:
+                    <code>${prefix}</code>
+                </p>
+
+                <div class="formula">
+                    Occ(${character}, ${i}) = ${occValue}
+                </div>
+
+                <p>
+                    Combine the two values:
+                </p>
+
+                <div class="formula">
+                    LF(${i})
+                    = C[${character}]
+                    + Occ(${character}, ${i})
+                    <br>
+                    = ${cValue} + ${occValue}
+                    <br>
+                    = ${destination}
+                </div>
+
+                <div class="callout">
+                    <p>
+                        <strong>Result:</strong>
+                        Row ${i} in L maps to
+                        row ${destination} in F.
+                    </p>
+
+                    <p>
+                        This is occurrence number
+                        ${occurrenceNumber} of
+                        <code>${character}</code>
+                        in both columns.
+                    </p>
+                </div>
+
+                <p>
+                    Rows visited so far:
+                    <code>
+                        ${path.slice(0, step).join(" → ")}
+                        → ${destination}
+                    </code>
+                </p>
+            `;
+        }
+
+        // Final step: Show the full mapping.
+        else {
+            html = `
+                <h3>Final Result: Complete LF Mapping</h3>
+
+                <p>
+                    We have calculated the destination
+                    row for every character in L.
+                </p>
+
+                ${makeMappingTable()}
+
+                <h3>LF Navigation Path</h3>
+
+                <div class="formula">
+                    ${path.join(" → ")}
+                    → ${currentRow}
+                </div>
+
+                <p>
+                    Starting from the row containing
+                    <code>$</code>, LF Mapping
+                    visits the other rows and
+                    eventually returns to the
+                    starting row.
+                </p>
+
+                <div class="callout">
+                    <p>
+                        <strong>Important:</strong>
+                        LF(i) gives a row number.
+                        It does not directly give
+                        the original text position.
+                    </p>
+
+                    <p>
+                        Inverse BWT uses these row
+                        transitions to reconstruct
+                        the text, while FM-Index
+                        backward search combines
+                        C and Occ to update
+                        search intervals.
+                    </p>
+                </div>
+            `;
+        }
+
+        output.innerHTML = html;
+
+        previous.disabled = step === 0;
+        next.disabled = step === lastStep;
+
+        next.textContent = next.disabled
+            ? "Complete ✓"
+            : "Next step →";
+
+        progress.textContent =
+            `Step ${step} of ${lastStep}`;
+    }
+
+    previous.addEventListener("click", () => {
+        step = Math.max(0, step - 1);
+        showStep();
+    });
+
+    next.addEventListener("click", () => {
+        step = Math.min(lastStep, step + 1);
+        showStep();
+    });
+
+    reset.addEventListener("click", () => {
+        step = 0;
+        showStep();
+    });
+
+    showStep();
+}
 function initBackwardStepper() {
   const host = $("backward-stepper");
 
@@ -2762,6 +3181,7 @@ function render() {
   initFMColumnsLesson();
   initCArrayStepper();
   initOccRankStepper();
+  initLFMappingStepper();
   initBackwardStepper();
 }
 
