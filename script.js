@@ -18,7 +18,7 @@ const lessons = [
     description: "Why compact data structures matter when searching genomic sequences.",
     topics: [
       {
-        : "overview",
+        id: "overview",
         title: "Overview",
         html: `
           <div class="mini-label">Start here</div>
@@ -3479,7 +3479,3 @@ if (!location.hash) {
 
 render();
 
-
-window.addEventListener("hashchange", render);
-if (!location.hash) location.hash = "/intro/overview";
-render();
