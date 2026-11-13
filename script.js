@@ -1275,20 +1275,94 @@ const lessons = [
         id: "read-mapping",
         title: "Read Mapping",
         html: `
-          <div class="mini-label">Bioinformatics problem</div>
-          <h2>How do we map DNA reads?</h2>
+          <div class="mini-label">Applications in Bioinformatics</div>
+          <h2>The Read-Mapping Problem</h2>
 
           <p>
-            Read mapping finds plausible positions
-            in a reference genome for short sequences
-            obtained from sequencing machines.
+            High-throughput DNA sequencing produces many short sequences
+            called <strong>reads</strong>. Read mapping tries to determine
+            where each read belongs in a much longer
+            <strong>reference genome</strong>.
           </p>
 
           <p>
-            The task is difficult when the genome
-            is long, the number of reads is large,
-            or reads contain sequencing errors
-            and genetic differences.
+            This presents two main challenges. First, very large numbers
+            of reads must be searched against a large genome with reasonable
+            time and memory requirements. For scale, one copy of the human
+            genome contains approximately <strong>3 billion base pairs</strong>.
+            Second, a read may match more than one reference location equally
+            well, making its original location ambiguous.
+          </p>
+
+          <div class="callout">
+            <p>
+              <strong>Teaching example:</strong> Use the small reference
+              <code>ACGTACGT</code> and the read <code>ACGT</code>.
+              This example illustrates the mapping problem; it is
+              <em>not</em> a full Bowtie or BWA alignment simulation.
+            </p>
+          </div>
+
+          <div class="stepper" id="read-mapping-stepper">
+            <div class="mini-label">
+              Interactive Read-Mapping Walkthrough
+            </div>
+
+            <div id="read-mapping-output"
+                 class="stepper-output"
+                 aria-live="polite"></div>
+
+            <div class="stepper-controls">
+              <button type="button" class="btn secondary"
+                      id="read-mapping-prev">
+                ← Previous
+              </button>
+
+              <button type="button" class="btn"
+                      id="read-mapping-next">
+                Next step →
+              </button>
+
+              <button type="button" class="btn secondary"
+                      id="read-mapping-reset">
+                Reset
+              </button>
+
+              <span id="read-mapping-progress"
+                    class="lesson-position"></span>
+            </div>
+          </div>
+
+          <div class="callout">
+            <p>
+              <strong>Other mapping tasks:</strong>
+              DNA-focused short-read aligners and splice-aware
+              RNA-seq aligners solve related but different problems.
+              RNA-seq reads may span large introns; splice-aware
+              tools are designed to recognize these gaps.
+            </p>
+          </div>
+
+          <p>
+            <strong>Next:</strong> Bowtie and BWA use BWT-based indexing
+            together with additional search strategies to align reads
+            that may not match the reference exactly.
+          </p>
+
+          <p class="mini-label">
+            Sources:
+            <a href="https://www.genome.gov/about-genomics/fact-sheets/DNA-Sequencing-Fact-Sheet"
+               target="_blank" rel="noopener noreferrer">
+              NHGRI
+            </a>,
+            <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC2690996/"
+               target="_blank" rel="noopener noreferrer">
+              Langmead et al. (2009)
+            </a>,
+            <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC2705234/"
+               target="_blank" rel="noopener noreferrer">
+              Li and Durbin (2009)
+            </a>.
           </p>
         `
       },
@@ -4391,6 +4465,225 @@ function initComplexityStepper() {
 
     showStep();
 }
+
+function initReadMappingStepper() {
+    if (!$("read-mapping-stepper")) return;
+
+    const reference = "ACGTACGT";
+    const read = "ACGT";
+    const changedRead = "ACGA";
+
+    // Find all exact candidate locations using 0-based indexing.
+    const candidates = Array.from(
+        { length: reference.length - read.length + 1 },
+        (_, start) => ({
+            start,
+            segment: reference.slice(start, start + read.length),
+            exact: reference.slice(start, start + read.length) === read
+        })
+    );
+
+    const matches = candidates.filter(item => item.exact);
+
+    // Count differences between two equally sized sequences.
+    const mismatchCount = (a, b) =>
+        [...a].filter((ch, i) => ch !== b[i]).length;
+
+    const output = $("read-mapping-output");
+    const previous = $("read-mapping-prev");
+    const next = $("read-mapping-next");
+    const reset = $("read-mapping-reset");
+    const progress = $("read-mapping-progress");
+
+    let step = 0;
+
+    // Display every possible reference substring.
+    function candidateTable() {
+        const rows = candidates.map(item => `
+            <tr style="${item.exact ? 'background:#e9f6f3;' : ''}">
+                <td>${item.start}</td>
+                <td><code>${item.segment}</code></td>
+                <td>
+                    ${item.exact ? 'Exact match' : 'Not a match'}
+                </td>
+            </tr>
+        `).join("");
+
+        return `
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Starting position (0-based)</th>
+                            <th>Reference substring</th>
+                            <th>Comparison to read</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        ${rows}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    const stages = [
+        {
+            title: "Step 0: Reference Genome and Read",
+            body: `
+                <p>
+                    Our reference is a short teaching string.
+                    A real reference genome may contain billions
+                    of bases.
+                </p>
+
+                <div class="example-grid">
+                    <div class="example-box">
+                        <strong>Reference</strong>
+                        <code>${reference}</code>
+                    </div>
+
+                    <div class="example-box">
+                        <strong>Read to map</strong>
+                        <code>${read}</code>
+                    </div>
+                </div>
+
+                <p>
+                    We want to find every starting position where
+                    this read appears in the reference.
+                    All positions use 0-based indexing.
+                </p>
+            `
+        },
+        {
+            title: "Step 1: Compare Candidate Locations",
+            body: `
+                <p>
+                    For an exact match, compare the read with
+                    every possible length-${read.length}
+                    reference substring.
+                </p>
+
+                ${candidateTable()}
+
+                <div class="formula">
+                    Exact match positions =
+                    ${matches.map(x => x.start).join(", ")}
+                </div>
+
+                <p>
+                    This direct scan illustrates the problem.
+                    Real aligners use indexing to avoid repeatedly
+                    scanning the full reference.
+                </p>
+            `
+        },
+        {
+            title: "Step 2: Why Repeats Make Mapping Ambiguous",
+            body: `
+                <p>
+                    The read <code>${read}</code> occurs at
+                    <strong>${matches.length} positions</strong>:
+                    <code>${matches.map(x => x.start).join(" and ")}</code>.
+                </p>
+
+                <div class="example-grid">
+                    <div class="example-box">
+                        <strong>Positions 0–3</strong>
+                        <code>${reference.slice(0, 4)}</code>
+                    </div>
+
+                    <div class="example-box">
+                        <strong>Positions 4–7</strong>
+                        <code>${reference.slice(4, 8)}</code>
+                    </div>
+                </div>
+
+                <div class="callout">
+                    <p>
+                        <strong>Important:</strong>
+                        Finding two exact matches does not reveal
+                        which location actually produced the read.
+                        This is called
+                        <strong>ambiguous mapping</strong>.
+                    </p>
+                </div>
+            `
+        },
+        {
+            title: "Step 3: Reads May Contain Differences",
+            body: `
+                <p>
+                    Suppose the observed read is
+                    <code>${changedRead}</code>
+                    rather than <code>${read}</code>.
+                    It has no exact match in our reference,
+                    but differs by only one nucleotide from
+                    <code>${read}</code>.
+                </p>
+
+                <div class="formula">
+                    ${changedRead} vs. ${read}:
+                    ${mismatchCount(changedRead, read)} mismatch
+                </div>
+
+                <p>
+                    A difference may arise from a sequencing error
+                    or a genuine genetic variation.
+                    Other alignments can contain insertions
+                    or deletions, called <strong>indels</strong>.
+                </p>
+
+                <div class="callout">
+                    <p>
+                        <strong>Why this matters:</strong>
+                        Exact FM-Index backward search is not
+                        enough to handle these differences
+                        by itself. Bowtie and BWA add
+                        alignment search strategies.
+                    </p>
+                </div>
+            `
+        }
+    ];
+
+    // Display the selected walkthrough step.
+    function showStep() {
+        output.innerHTML = `
+            <h3>${stages[step].title}</h3>
+            ${stages[step].body}
+        `;
+
+        previous.disabled = step === 0;
+        next.disabled = step === stages.length - 1;
+
+        next.textContent = next.disabled
+            ? "Complete ✓"
+            : "Next step →";
+
+        progress.textContent =
+            `Step ${step} of ${stages.length - 1}`;
+    }
+
+    previous.addEventListener("click", () => {
+        step = Math.max(0, step - 1);
+        showStep();
+    });
+
+    next.addEventListener("click", () => {
+        step = Math.min(stages.length - 1, step + 1);
+        showStep();
+    });
+
+    reset.addEventListener("click", () => {
+        step = 0;
+        showStep();
+    });
+
+    showStep();
+}
 // ==================================================
 // RENDER THE SELECTED LESSON
 // ==================================================
@@ -4477,6 +4770,7 @@ function render() {
   initRankCheckpointStepper();
   initSASamplingStepper();
   initComplexityStepper();
+  initReadMappingStepper();
 }
 
 // ==================================================
