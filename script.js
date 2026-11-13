@@ -888,41 +888,125 @@ const lessons = [
                 </div>
             `
         },
-      {
-        id: "rank-checkpoints",
-        title: "Rank Checkpoints",
-        html: `
-          <div class="mini-label">Space–time trade-off</div>
-          <h2>Why store rank checkpoints?</h2>
+        {
+            id: "rank-checkpoints",
+            title: "Rank Checkpoints",
+            html: `
+                <div class="mini-label">FM-Index Space-Time Trade-off</div>
+                <h2>Understanding Rank Checkpoints</h2>
 
-          <p>
-            Repeatedly counting a character from the
-            beginning of <code>L</code> can be slow.
-          </p>
+                <p>
+                    The <strong>Occ / Rank function</strong>
+                    counts occurrences of a character within
+                    a prefix of the BWT's last column.
+                </p>
 
-          <p>
-            Instead, we can store character counts
-            at selected checkpoints and count only
-            the characters between the nearest
-            checkpoint and the queried position.
-          </p>
+                <p>
+                    Instead of counting characters from the
+                    beginning every time, we can store
+                    <strong>rank checkpoints</strong> at
+                    selected prefix positions.
+                </p>
 
-          <div class="callout">
-            <p>
-              <strong>Key difference:</strong>
-              <code>Occ(c, i)</code> is the required
-              count; checkpoints are stored summaries
-              that help answer it.
-            </p>
-          </div>
+                <h3>Checkpoint Formula</h3>
 
-          <p>
-            We will add a visual checkpoint table
-            for <code>L = annb$aa</code>
-            in this lesson.
-          </p>
-        `
-      },
+                <div class="formula">
+                    Occ(c, i) = Occ(c, q) + Count of c in L[q:i]
+                </div>
+
+                <ul>
+                    <li>
+                        <strong>c:</strong>
+                        Character being counted.
+                    </li>
+                    <li>
+                        <strong>i:</strong>
+                        Requested prefix length.
+                    </li>
+                    <li>
+                        <strong>q:</strong>
+                        Largest stored checkpoint
+                        position not exceeding i.
+                    </li>
+                    <li>
+                        <strong>Occ(c, q):</strong>
+                        Previously stored prefix count.
+                    </li>
+                    <li>
+                        <strong>L[q:i]:</strong>
+                        Short region scanned after
+                        the checkpoint, excluding i.
+                    </li>
+                </ul>
+
+                <div class="callout">
+                    <p>
+                        <strong>Remember:</strong>
+                        We use 0-based indexing and
+                        half-open intervals throughout.
+                    </p>
+
+                    <p>
+                        The checkpoint at position q stores
+                        counts for L[0:q], not including
+                        the character at index q.
+                    </p>
+                </div>
+
+                <h3>Interactive Rank Checkpoints</h3>
+
+                <p>
+                    Follow each step to construct the
+                    checkpoint table and answer Occ queries
+                    using the nearest preceding checkpoint.
+                </p>
+
+                <div class="stepper" id="rank-checkpoint-stepper">
+
+                    <div id="rank-checkpoint-output"
+                         class="stepper-output"
+                         aria-live="polite"></div>
+
+                    <div class="stepper-controls">
+                        <button type="button"
+                                class="btn secondary"
+                                id="rank-checkpoint-prev">
+                            ← Previous
+                        </button>
+
+                        <button type="button"
+                                class="btn"
+                                id="rank-checkpoint-next">
+                            Next step →
+                        </button>
+
+                        <button type="button"
+                                class="btn secondary"
+                                id="rank-checkpoint-reset">
+                            Reset
+                        </button>
+
+                        <span id="rank-checkpoint-progress"
+                              class="lesson-position"></span>
+                    </div>
+                </div>
+
+                <div class="callout">
+                    <p>
+                        <strong>Space-time trade-off:</strong>
+                        More checkpoints require more storage
+                        but reduce the number of characters
+                        scanned per query.
+                    </p>
+
+                    <p>
+                        Practical compressed indexes may use
+                        more advanced rank-support structures,
+                        including bit vectors and wavelet trees.
+                    </p>
+                </div>
+            `
+        },
       {
         id: "sa-sampling",
         title: "SA Sampling",
@@ -3382,6 +3466,364 @@ function initBackwardStepper() {
     showStep();
 }
 
+function initRankCheckpointStepper() {
+    if (!$('rank-checkpoint-stepper')) return;
+
+    const L = 'annb$aa';
+    const blockSize = 4;
+    const alphabet = ['$', 'a', 'b', 'n'];
+
+    // Counts c in L[0:i].
+    // Used to construct and verify stored checkpoints.
+    function countPrefix(c, i) {
+        return [...L.slice(0, i)].filter(
+            ch => ch === c
+        ).length;
+    }
+
+    // Store checkpoint counts at positions 0 and 4.
+    const checkpointPositions = [];
+    const checkpoints = {};
+
+    for (let i = 0; i < L.length; i += blockSize) {
+        checkpointPositions.push(i);
+        checkpoints[i] = {};
+
+        alphabet.forEach(c => {
+            checkpoints[i][c] = countPrefix(c, i);
+        });
+    }
+
+    // Worked examples to demonstrate.
+    const queries = [
+        { c: 'n', i: 5 },
+        { c: 'a', i: 5 },
+        { c: 'a', i: 7 },
+        { c: 'a', i: 3 }
+    ];
+
+    const output = $('rank-checkpoint-output');
+    const previous = $('rank-checkpoint-prev');
+    const next = $('rank-checkpoint-next');
+    const reset = $('rank-checkpoint-reset');
+    const progress = $('rank-checkpoint-progress');
+
+    let step = 0;
+    const lastStep = queries.length + 2;
+
+    // Display the stored checkpoint table.
+    function makeCheckpointTable() {
+        const rows = checkpointPositions.map(position => `
+            <tr>
+                <td>${position}</td>
+                <td>
+                    <code>
+                        ${L.slice(0, position) || '∅'}
+                    </code>
+                </td>
+
+                ${alphabet.map(c => `
+                    <td>${checkpoints[position][c]}</td>
+                `).join('')}
+            </tr>
+        `).join('');
+
+        return `
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Prefix length</th>
+                            <th>Stored prefix</th>
+                            <th>$</th>
+                            <th>a</th>
+                            <th>b</th>
+                            <th>n</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        ${rows}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    // Highlight only the characters that must
+    // be scanned after the selected checkpoint.
+    function makePositionTable(checkpoint, end, target) {
+        const header = [...L].map((_, i) => `
+            <th>${i}</th>
+        `).join('');
+
+        const chars = [...L].map((ch, i) => {
+            const inScan = i >= checkpoint && i < end;
+
+            return `
+                <td style="${inScan
+                    ? 'background:#e9f6f3;'
+                    : ''}">
+                    <code style="${inScan && ch === target
+                        ? 'font-weight:bold;text-decoration:underline;'
+                        : ''}">
+                        ${ch}
+                    </code>
+                </td>
+            `;
+        }).join('');
+
+        return `
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Index</th>
+                            ${header}
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        <tr>
+                            <th>L[i]</th>
+                            ${chars}
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <p>
+                The shaded characters form the short
+                region scanned after the checkpoint.
+            </p>
+        `;
+    }
+
+    function showStep() {
+        let html = '';
+
+        // Step 0: Introduce rank checkpoints.
+        if (step === 0) {
+            html = `
+                <h3>Start: Why Use Checkpoints?</h3>
+
+                <p>
+                    The BWT last column is
+                    <code>L = ${L}</code>.
+                </p>
+
+                <p>
+                    Instead of recounting from the beginning
+                    for every Occ query, store prefix counts
+                    every ${blockSize} characters.
+                </p>
+
+                <div class="formula">
+                    Checkpoint positions:
+                    ${checkpointPositions.join(', ')}
+                </div>
+
+                <p>
+                    Each checkpoint stores the number
+                    of $, a, b, and n characters
+                    before that position.
+                </p>
+            `;
+        }
+
+        // Step 1: Construct checkpoint table.
+        else if (step === 1) {
+            html = `
+                <h3>Step 1: Store Prefix Counts</h3>
+
+                ${makeCheckpointTable()}
+
+                <p>
+                    At prefix length 4,
+                    <code>L[0:4] = annb</code>.
+                </p>
+
+                <div class="formula">
+                    Occ(a, 4) = 1
+                    <br>
+                    Occ(n, 4) = 2
+                </div>
+
+                <p>
+                    There is no stored checkpoint at
+                    position 7 in this example.
+                    We can answer a query at position 7
+                    using the checkpoint at position 4.
+                </p>
+            `;
+        }
+
+        // Steps 2-5: Calculate Occ with checkpoints.
+        else if (step <= queries.length + 1) {
+            const query = queries[step - 2];
+
+            const checkpoint =
+                Math.floor(query.i / blockSize) * blockSize;
+
+            const stored = checkpoints[checkpoint][query.c];
+
+            const segment = L.slice(
+                checkpoint,
+                query.i
+            );
+
+            const extra = [...segment].filter(
+                ch => ch === query.c
+            ).length;
+
+            const answer = stored + extra;
+
+            html = `
+                <h3>
+                    Step ${step}:
+                    Calculate Occ(${query.c}, ${query.i})
+                </h3>
+
+                <p>
+                    Find the largest stored checkpoint
+                    at or before prefix length
+                    ${query.i}.
+                </p>
+
+                <p>
+                    Selected checkpoint:
+                    <strong>${checkpoint}</strong>
+                </p>
+
+                ${makePositionTable(
+                    checkpoint,
+                    query.i,
+                    query.c
+                )}
+
+                <h3>1. Retrieve the Stored Count</h3>
+
+                <div class="formula">
+                    Occ(${query.c}, ${checkpoint})
+                    = ${stored}
+                </div>
+
+                <h3>2. Scan the Remaining Characters</h3>
+
+                <p>
+                    Examine only:
+                    <code>
+                        L[${checkpoint}:${query.i}]
+                        = ${segment || '∅'}
+                    </code>
+                </p>
+
+                <p>
+                    Occurrences of
+                    <code>${query.c}</code>
+                    in this region:
+                    <strong>${extra}</strong>.
+                </p>
+
+                <h3>3. Add the Two Counts</h3>
+
+                <div class="formula">
+                    Occ(${query.c}, ${query.i})
+                    = Occ(${query.c}, ${checkpoint})
+                      + ${extra}
+                    <br>
+                    = ${stored} + ${extra}
+                    <br>
+                    = ${answer}
+                </div>
+
+                <div class="callout">
+                    <p>
+                        <strong>Result:</strong>
+                        We only needed to scan
+                        ${query.i - checkpoint}
+                        character(s), rather than
+                        recounting the whole prefix.
+                    </p>
+                </div>
+            `;
+        }
+
+        // Step 6: Final summary.
+        else {
+            html = `
+                <h3>Final Result: Using Rank Checkpoints</h3>
+
+                ${makeCheckpointTable()}
+
+                <p>
+                    For example, we can calculate:
+                </p>
+
+                <div class="formula">
+                    Occ(a, 7)
+                    = Occ(a, 4) + 2
+                    <br>
+                    = 1 + 2
+                    <br>
+                    = 3
+                </div>
+
+                <div class="callout">
+                    <p>
+                        <strong>Space-time trade-off:</strong>
+                        Storing checkpoints costs extra
+                        memory, but each query scans
+                        fewer characters.
+                    </p>
+
+                    <p>
+                        With a block size of ${blockSize},
+                        a query scans at most
+                        ${blockSize - 1} characters
+                        after its preceding checkpoint.
+                    </p>
+
+                    <p>
+                        More advanced rank structures
+                        can provide faster queries with
+                        compact representations.
+                    </p>
+                </div>
+            `;
+        }
+
+        output.innerHTML = html;
+
+        previous.disabled = step === 0;
+        next.disabled = step === lastStep;
+
+        next.textContent = next.disabled
+            ? 'Complete ✓'
+            : 'Next step →';
+
+        progress.textContent =
+            `Step ${step} of ${lastStep}`;
+    }
+
+    previous.addEventListener('click', () => {
+        step = Math.max(0, step - 1);
+        showStep();
+    });
+
+    next.addEventListener('click', () => {
+        step = Math.min(lastStep, step + 1);
+        showStep();
+    });
+
+    reset.addEventListener('click', () => {
+        step = 0;
+        showStep();
+    });
+
+    showStep();
+}
+
 // ==================================================
 // RENDER THE SELECTED LESSON
 // ==================================================
@@ -3465,6 +3907,7 @@ function render() {
   initOccRankStepper();
   initLFMappingStepper();
   initBackwardStepper();
+  initRankCheckpointStepper();
 }
 
 // ==================================================
