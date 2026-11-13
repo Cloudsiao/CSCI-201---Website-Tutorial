@@ -1097,33 +1097,72 @@ const lessons = [
                 </div>
             `
         },
-      {
-        id: "complexity",
-        title: "Complexity",
-        html: `
-          <div class="mini-label">Computational trade-offs</div>
-          <h2>What does FM-Index cost?</h2>
+        {
+            id: "complexity",
+            title: "Complexity",
+            html: `
+                <div class="mini-label">FM-Index Performance</div>
+                <h2>Time and Space Complexity of the FM-Index</h2>
 
-          <p>
-            With constant-time rank queries,
-            counting occurrences of a pattern
-            of length <code>m</code> takes
-            <strong>O(m)</strong> backward-search time.
-          </p>
+                <p>
+                    The FM-Index separates two jobs:
+                    <strong>counting matches</strong> using Backward
+                    Search and <strong>locating matches</strong>
+                    using sampled suffix-array values.
+                </p>
 
-          <p>
-            Recovering occurrence positions requires
-            additional LF steps when suffix-array
-            values are sampled.
-          </p>
+                <div class="formula">
+                    Backward Search: O(m), assuming O(1) rank queries
+                </div>
 
-          <p>
-            Sampling reduces index storage but
-            can increase the number of steps
-            needed to locate a match.
-          </p>
-        `
-      }
+                <p>Variables used in this lesson:</p>
+                <ul>
+                    <li><strong>n:</strong> Length of the indexed text.</li>
+                    <li><strong>m:</strong> Length of the search pattern.</li>
+                    <li><strong>k:</strong> Number of reported matches.</li>
+                    <li><strong>s:</strong> SA-value sampling interval.</li>
+                    <li><strong>b:</strong> Rank checkpoint spacing.</li>
+                    <li><strong>σ:</strong> Number of distinct characters.</li>
+                </ul>
+
+                <div class="callout">
+                    <p>
+                        <strong>Remember:</strong> O(m) is the time
+                        to <em>count</em> matches when rank queries
+                        take constant time. Recovering original
+                        positions has an additional cost.
+                    </p>
+                </div>
+
+                <h3>Interactive Complexity Walkthrough</h3>
+
+                <div class="stepper" id="complexity-stepper">
+                    <div id="complexity-output"
+                         class="stepper-output"
+                         aria-live="polite"></div>
+
+                    <div class="stepper-controls">
+                        <button type="button"
+                                class="btn secondary"
+                                id="complexity-prev">
+                            ← Previous
+                        </button>
+                        <button type="button"
+                                class="btn"
+                                id="complexity-next">
+                            Next step →
+                        </button>
+                        <button type="button"
+                                class="btn secondary"
+                                id="complexity-reset">
+                            Reset
+                        </button>
+                        <span id="complexity-progress"
+                              class="lesson-position"></span>
+                    </div>
+                </div>
+            `
+        }
     ]
   },
 
@@ -4161,6 +4200,197 @@ function initSASamplingStepper() {
 
     showStep();
 }
+
+function initComplexityStepper() {
+    if (!$('complexity-stepper')) return;
+
+    const output = $('complexity-output');
+    const previous = $('complexity-prev');
+    const next = $('complexity-next');
+    const reset = $('complexity-reset');
+    const progress = $('complexity-progress');
+
+    const stages = [
+        {
+            title: 'Start: Our Example',
+            html: `
+                <p>
+                    We search for <code>ana</code> in
+                    <code>banana$</code>.
+                </p>
+                <div class="example-grid">
+                    <div class="example-box">
+                        <strong>Text length</strong><code>n = 7</code>
+                    </div>
+                    <div class="example-box">
+                        <strong>Pattern length</strong><code>m = 3</code>
+                    </div>
+                    <div class="example-box">
+                        <strong>Matches found</strong><code>k = 2</code>
+                    </div>
+                    <div class="example-box">
+                        <strong>SA sampling interval</strong><code>s = 2</code>
+                    </div>
+                </div>
+                <p>
+                    We will examine the work needed to count
+                    matches, answer rank queries, and locate
+                    starting positions.
+                </p>
+            `
+        },
+        {
+            title: 'Step 1: Backward Search Counts Matches',
+            html: `
+                <p>
+                    Backward Search processes one pattern character
+                    at a time, from right to left.
+                </p>
+                <div class="formula">
+                    [0, 7) → [1, 4) → [5, 7) → [2, 4)
+                </div>
+                <p>
+                    For <code>ana</code>, that is
+                    <strong>three updates</strong>: one per character.
+                    Every update uses two Occ/rank queries.
+                </p>
+                <div class="formula">
+                    Counting time = O(m), if Occ takes O(1)
+                </div>
+                <p>
+                    The final interval contains
+                    <code>4 - 2 = 2</code> matching rows.
+                    No text positions have been recovered yet.
+                </p>
+            `
+        },
+        {
+            title: 'Step 2: Why Rank Speed Matters',
+            html: `
+                <p>
+                    Each backward-search update requires Occ queries.
+                    Their implementation determines the cost.
+                </p>
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Occ implementation</th>
+                                <th>One query</th>
+                                <th>Count a pattern</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Scan from start</td><td>O(n)</td><td>O(mn)</td></tr>
+                            <tr><td>Checkpoints every b symbols</td><td>O(b)</td><td>O(mb)</td></tr>
+                            <tr><td>Constant-time rank structure</td><td>O(1)</td><td>O(m)</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p>
+                    Checkpoints store counts and scan only a short
+                    remainder. More sophisticated rank structures
+                    support faster queries with compact storage.
+                </p>
+            `
+        },
+        {
+            title: 'Step 3: Locating Match Positions',
+            html: `
+                <p>
+                    The interval <code>[2, 4)</code> gives matching
+                    <em>rows</em> 2 and 3. SA sampling recovers their
+                    starting positions using LF Mapping.
+                </p>
+                <div class="formula">
+                    Row 2 → LF(2) = 6 → sampled SA[6] = 2
+                    <br>
+                    SA[2] = (2 + 1) mod 7 = 3
+                </div>
+                <div class="formula">
+                    Row 3 → LF(3) = 4 → sampled SA[4] = 0
+                    <br>
+                    SA[3] = (0 + 1) mod 7 = 1
+                </div>
+                <p>
+                    For regular SA-value sampling every
+                    <code>s</code> positions, each locate needs at
+                    most <code>s - 1</code> LF steps. Thus, with
+                    constant-time rank, locating <code>k</code>
+                    results takes <strong>O(ks)</strong> time.
+                </p>
+            `
+        },
+        {
+            title: 'Step 4: Space–Time Trade-off',
+            html: `
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr><th>Stored component</th><th>Approximate storage</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>BWT column L</td><td>O(n) symbols</td></tr>
+                            <tr><td>C array</td><td>O(σ) counters</td></tr>
+                            <tr><td>Full suffix array</td><td>O(n) entries</td></tr>
+                            <tr><td>SA sampled every s values</td><td>O(n/s) entries</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p>
+                    Rank-support data structures require additional
+                    storage. Sparse SA sampling reduces stored SA
+                    entries but may require more LF steps.
+                </p>
+                <div class="callout">
+                    <p>
+                        <strong>Overall:</strong> Under O(1) rank
+                        queries, counting takes <code>O(m)</code>.
+                        Counting and locating all k matches with
+                        regular SA-value sampling takes
+                        <code>O(m + ks)</code> time.
+                    </p>
+                    <p>
+                        This is why the FM-Index is useful in
+                        genomics: compact indexing with efficient
+                        pattern counting and configurable locating costs.
+                    </p>
+                </div>
+            `
+        }
+    ];
+
+    let step = 0;
+
+    function showStep() {
+        output.innerHTML = `
+            <h3>${stages[step].title}</h3>
+            ${stages[step].html}
+        `;
+
+        previous.disabled = step === 0;
+        next.disabled = step === stages.length - 1;
+        next.textContent = next.disabled ? 'Complete ✓' : 'Next step →';
+        progress.textContent = `Step ${step} of ${stages.length - 1}`;
+    }
+
+    previous.addEventListener('click', () => {
+        step = Math.max(0, step - 1);
+        showStep();
+    });
+
+    next.addEventListener('click', () => {
+        step = Math.min(stages.length - 1, step + 1);
+        showStep();
+    });
+
+    reset.addEventListener('click', () => {
+        step = 0;
+        showStep();
+    });
+
+    showStep();
+}
 // ==================================================
 // RENDER THE SELECTED LESSON
 // ==================================================
@@ -4246,6 +4476,7 @@ function render() {
   initBackwardStepper();
   initRankCheckpointStepper();
   initSASamplingStepper();
+  initComplexityStepper();
 }
 
 // ==================================================
