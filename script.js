@@ -1007,51 +1007,96 @@ const lessons = [
                 </div>
             `
         },
-      {
-        id: "sa-sampling",
-        title: "SA Sampling",
-        html: `
-          <div class="mini-label">Locating occurrences</div>
-          <h2>How can we recover the text positions?</h2>
+        {
+            id: "sa-sampling",
+            title: "SA Sampling",
+            html: `
+                <div class="mini-label">FM-Index Locating Matches</div>
+                <h2>Recovering Text Positions with SA Sampling</h2>
 
-          <p>
-            Backward Search returns an interval of
-            matching rows, not the original
-            starting positions.
-          </p>
+                <p>
+                    Backward Search for <code>ana</code> returned
+                    the suffix-array interval <code>[2, 4)</code>.
+                    This tells us that two matches exist, but not
+                    where they start in the original text.
+                </p>
 
-          <p>
-            FM-Index implementations can save selected
-            suffix-array values and follow LF steps
-            to reconstruct unsampled positions.
-          </p>
+                <p>
+                    <strong>Suffix Array (SA) Sampling</strong> stores
+                    selected suffix-array values. We can use
+                    <strong>LF Mapping</strong> to find a stored value
+                    and recover the missing position.
+                </p>
 
-          <p>
-            For <code>banana$</code>:
-          </p>
+                <div class="formula">
+                    SA[i] = (SA[LF^t(i)] + t) mod n
+                </div>
 
-          <p>
-            <span class="code-sequence">
-              SA = [6, 5, 3, 1, 0, 4, 2]
-            </span>
-          </p>
+                <ul>
+                    <li><strong>i:</strong> Suffix-array row to locate.</li>
+                    <li><strong>LF^t(i):</strong> Row reached after t LF steps.</li>
+                    <li><strong>t:</strong> Number of LF steps taken.</li>
+                    <li><strong>n:</strong> Length of the indexed text.</li>
+                </ul>
 
-          <p>
-            If we sample entries whose SA
-            <em>values</em> are divisible by 2,
-            the sampled rows include
-            4 (value 0) and 6 (value 2).
-          </p>
+                <div class="callout">
+                    <p>
+                        <strong>Sampling rule:</strong>
+                        For this example, store entries whose
+                        <em>SA values</em> are divisible by 2.
+                        This is not the same as storing every
+                        second row.
+                    </p>
 
-          <div class="callout">
-            <p>
-              <strong>Important:</strong>
-              Sampling by SA value is not necessarily
-              the same as sampling every second row.
-            </p>
-          </div>
-        `
-      },
+                    <p>
+                        Every LF step moves one character backward
+                        in the original text. We add the number
+                        of steps to the sampled SA value to
+                        recover the starting position.
+                    </p>
+                </div>
+
+                <h3>Interactive SA Sampling</h3>
+
+                <div class="stepper" id="sa-sampling-stepper">
+                    <div id="sa-sampling-output"
+                         class="stepper-output"
+                         aria-live="polite"></div>
+
+                    <div class="stepper-controls">
+                        <button type="button"
+                                class="btn secondary"
+                                id="sa-sampling-prev">
+                            ← Previous
+                        </button>
+
+                        <button type="button"
+                                class="btn"
+                                id="sa-sampling-next">
+                            Next step →
+                        </button>
+
+                        <button type="button"
+                                class="btn secondary"
+                                id="sa-sampling-reset">
+                            Reset
+                        </button>
+
+                        <span id="sa-sampling-progress"
+                              class="lesson-position"></span>
+                    </div>
+                </div>
+
+                <div class="callout">
+                    <p>
+                        <strong>Trade-off:</strong>
+                        Fewer stored SA entries mean less memory
+                        use, but locating some matches requires
+                        additional LF steps.
+                    </p>
+                </div>
+            `
+        },
       {
         id: "complexity",
         title: "Complexity",
@@ -3824,6 +3869,298 @@ function initRankCheckpointStepper() {
     showStep();
 }
 
+function initSASamplingStepper() {
+    if (!$('sa-sampling-stepper')) return;
+
+    const T = 'banana$';
+    const L = 'annb$aa';
+    const n = T.length;
+    const sampleRate = 2;
+    const matchStart = 2;
+    const matchEnd = 4;
+
+    // Build the suffix array for preprocessing and verification.
+    // The locate routine below uses sampled entries, not the full SA.
+    const suffixes = Array.from({ length: n }, (_, i) => ({
+        start: i,
+        suffix: T.slice(i)
+    })).sort((a, b) =>
+        a.suffix < b.suffix ? -1 : a.suffix > b.suffix ? 1 : 0
+    );
+
+    const SA = suffixes.map(entry => entry.start);
+    const samples = new Map();
+
+    SA.forEach((value, row) => {
+        if (value % sampleRate === 0) {
+            samples.set(row, value);
+        }
+    });
+
+    const F = [...L].sort().join('');
+    const C = {};
+
+    for (let i = 0; i < n; i++) {
+        if (C[F[i]] === undefined) {
+            C[F[i]] = i;
+        }
+    }
+
+    function Occ(c, i) {
+        return [...L.slice(0, i)].filter(
+            character => character === c
+        ).length;
+    }
+
+    function LF(i) {
+        return C[L[i]] + Occ(L[i], i);
+    }
+
+    // Locate a row by following LF until a sampled SA value is found.
+    function locate(startRow) {
+        let row = startRow;
+        const transitions = [];
+
+        while (!samples.has(row) && transitions.length < n) {
+            const character = L[row];
+            const cValue = C[character];
+            const occValue = Occ(character, row);
+            const nextRow = LF(row);
+
+            transitions.push({
+                from: row,
+                character: character,
+                cValue: cValue,
+                occValue: occValue,
+                to: nextRow
+            });
+
+            row = nextRow;
+        }
+
+        if (!samples.has(row)) {
+            throw new Error('No sampled SA row was reached.');
+        }
+
+        const sampledValue = samples.get(row);
+        const position = (sampledValue + transitions.length) % n;
+
+        return {
+            startRow: startRow,
+            sampledRow: row,
+            sampledValue: sampledValue,
+            transitions: transitions,
+            position: position
+        };
+    }
+
+    const matches = Array.from(
+        { length: matchEnd - matchStart },
+        (_, i) => locate(matchStart + i)
+    );
+
+    const output = $('sa-sampling-output');
+    const previous = $('sa-sampling-prev');
+    const next = $('sa-sampling-next');
+    const reset = $('sa-sampling-reset');
+    const progress = $('sa-sampling-progress');
+
+    let step = 0;
+    const lastStep = 4;
+
+    function makeSampleTable(highlightRow = -1) {
+        const rows = suffixes.map((entry, row) => {
+            const saved = samples.has(row);
+            const selected = row === highlightRow;
+
+            return `
+                <tr style="${selected ? 'background:#e9f6f3;' : ''}">
+                    <td>${row}</td>
+                    <td><code>${entry.suffix}</code></td>
+                    <td>${saved ? samples.get(row) : '—'}</td>
+                    <td>${saved ? 'Stored' : 'Not stored'}</td>
+                </tr>
+            `;
+        }).join('');
+
+        return `
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>SA row i</th>
+                            <th>Sorted suffix</th>
+                            <th>Saved SA[i]</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    function makeLocationExample(result) {
+        const transitions = result.transitions.map(t => `
+            <div class="formula">
+                LF(${t.from}) = C[${t.character}]
+                + Occ(${t.character}, ${t.from})
+                <br>
+                = ${t.cValue} + ${t.occValue}
+                = ${t.to}
+            </div>
+        `).join('');
+
+        return `
+            <p>
+                Starting from suffix-array row
+                <strong>${result.startRow}</strong>,
+                follow LF until a stored entry is reached.
+            </p>
+
+            ${transitions || '<p>This row is already sampled.</p>'}
+
+            ${makeSampleTable(result.sampledRow)}
+
+            <p>
+                We reach stored row
+                <strong>${result.sampledRow}</strong>, where
+                <code>SA[${result.sampledRow}] =
+                ${result.sampledValue}</code>.
+            </p>
+
+            <p>
+                Following LF moves backward by one position
+                in the original text. Reverse that movement
+                by adding the number of LF steps.
+            </p>
+
+            <div class="formula">
+                SA[${result.startRow}]
+                = (SA[${result.sampledRow}] +
+                ${result.transitions.length}) mod ${n}
+                <br>
+                = (${result.sampledValue} +
+                ${result.transitions.length}) mod ${n}
+                <br>
+                = ${result.position}
+            </div>
+        `;
+    }
+
+    function showStep() {
+        let html = '';
+
+        if (step === 0) {
+            html = `
+                <h3>Start: Backward Search Found Two Rows</h3>
+
+                <p>
+                    Searching for <code>ana</code> in
+                    <code>${T}</code> gave the interval
+                    <code>[${matchStart}, ${matchEnd})</code>.
+                    These are suffix-array rows
+                    <strong>${matchStart}</strong> and
+                    <strong>${matchEnd - 1}</strong>.
+                </p>
+
+                <p>
+                    To obtain the original text positions, we need
+                    the corresponding SA values. Let's recover
+                    them without keeping the complete SA.
+                </p>
+            `;
+        } else if (step === 1) {
+            html = `
+                <h3>Step 1: Store Selected SA Values</h3>
+
+                <p>
+                    Store only SA entries whose <strong>values</strong>
+                    are divisible by ${sampleRate}.
+                    This is different from saving every
+                    second row.
+                </p>
+
+                ${makeSampleTable()}
+
+                <p>
+                    The saved rows are
+                    <code>${[...samples.keys()].join(', ')}</code>.
+                    Rows 2 and 3 are not saved directly.
+                </p>
+            `;
+        } else if (step === 2) {
+            html = `
+                <h3>Step 2: Locate the Match at Row 2</h3>
+                ${makeLocationExample(matches[0])}
+            `;
+        } else if (step === 3) {
+            html = `
+                <h3>Step 3: Locate the Match at Row 3</h3>
+                ${makeLocationExample(matches[1])}
+            `;
+        } else {
+            const positions = matches.map(result => result.position)
+                .sort((a, b) => a - b);
+
+            html = `
+                <h3>Final Result: Original Text Positions</h3>
+
+                <p>
+                    The final search interval
+                    <code>[${matchStart}, ${matchEnd})</code>
+                    contains two matches.
+                </p>
+
+                <div class="formula">
+                    SA[2] = ${matches[0].position}
+                    <br>
+                    SA[3] = ${matches[1].position}
+                </div>
+
+                <div class="callout">
+                    <p>
+                        <strong>Match positions (0-based):</strong>
+                        <code>${positions.join(', ')}</code>.
+                    </p>
+                    <p>
+                        The matches are the substrings at
+                        positions 1–3 and 3–5 of
+                        <code>${T}</code>.
+                    </p>
+                </div>
+
+                <p>
+                    SA sampling saves space, but locating an
+                    unsampled row may require additional LF steps.
+                </p>
+            `;
+        }
+
+        output.innerHTML = html;
+        previous.disabled = step === 0;
+        next.disabled = step === lastStep;
+        next.textContent = next.disabled ? 'Complete ✓' : 'Next step →';
+        progress.textContent = `Step ${step} of ${lastStep}`;
+    }
+
+    previous.addEventListener('click', () => {
+        step = Math.max(0, step - 1);
+        showStep();
+    });
+
+    next.addEventListener('click', () => {
+        step = Math.min(lastStep, step + 1);
+        showStep();
+    });
+
+    reset.addEventListener('click', () => {
+        step = 0;
+        showStep();
+    });
+
+    showStep();
+}
 // ==================================================
 // RENDER THE SELECTED LESSON
 // ==================================================
@@ -3908,6 +4245,7 @@ function render() {
   initLFMappingStepper();
   initBackwardStepper();
   initRankCheckpointStepper();
+  initSASamplingStepper();
 }
 
 // ==================================================
