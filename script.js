@@ -1475,31 +1475,104 @@ const lessons = [
         id: "bwa",
         title: "BWA",
         html: `
-          <div class="mini-label">Li and Durbin, 2009</div>
-          <h2>Bounded inexact searching with gaps</h2>
+          <div class="mini-label">Applications in Bioinformatics</div>
+          <h2>BWA: DNA Alignment with Mismatches and Gaps</h2>
 
           <p>
-            Original BWA extends BWT-based searching
-            to consider substitutions, insertions,
-            and deletions.
+            The <strong>Burrows-Wheeler Aligner (BWA)</strong>,
+            introduced by Li and Durbin in 2009, uses BWT-based
+            indexing to align short DNA reads against large
+            reference genomes.
           </p>
 
           <p>
-            Its lower-bound array <code>D(i)</code>
-            allows the search to prune branches
-            that cannot satisfy the remaining
-            difference allowance.
+            Unlike the original Bowtie algorithm, BWA supports
+            alignments involving <strong>mismatches, insertions,
+            and deletions</strong>, collectively called
+            differences or edits.
           </p>
 
-          <div class="formula">
-            If remaining allowance z &lt; D(i),
-            prune the branch.
+          <div class="callout">
+            <p>
+              <strong>The problem:</strong>
+              Allowing different types of edits creates many
+              possible alignment paths. Searching every possible
+              combination can require excessive computation.
+            </p>
+
+            <p>
+              <strong>BWA's approach:</strong>
+              Extend FM-Index backward searching with bounded
+              inexact matching and use a lower-bound array
+              <code>D(i)</code> to eliminate search branches
+              that cannot satisfy the remaining edit allowance.
+            </p>
           </div>
 
+          <h3>Interactive BWA Walkthrough</h3>
+
           <p>
-            We will add the fully worked
-            <code>ACGTACGT</code> versus
-            <code>ACGACGT</code> example here.
+            We will use the reference <code>ACGTACGT</code>
+            and read <code>ACGACGT</code>.
+            Follow each step to examine the missing nucleotide,
+            construct the lower-bound array, and understand
+            how BWA prunes unsuccessful search branches.
+          </p>
+
+          <div class="stepper" id="bwa-stepper">
+            <div class="mini-label">
+              Inexact Matching and Lower-Bound Pruning
+            </div>
+
+            <div id="bwa-output"
+                 class="stepper-output"
+                 aria-live="polite"></div>
+
+            <div class="stepper-controls">
+              <button type="button" class="btn secondary"
+                      id="bwa-prev">
+                ← Previous
+              </button>
+
+              <button type="button" class="btn"
+                      id="bwa-next">
+                Next step →
+              </button>
+
+              <button type="button" class="btn secondary"
+                      id="bwa-reset">
+                Reset
+              </button>
+
+              <span id="bwa-progress"
+                    class="lesson-position"></span>
+            </div>
+          </div>
+
+          <div class="callout">
+            <p>
+              <strong>Important:</strong>
+              D(i) is a lower bound on the number of
+              differences required for the read prefix
+              ending at position i. It is not necessarily
+              the exact number of edits in the final alignment.
+            </p>
+
+            <p>
+              This lesson uses the original BWA algorithm
+              from 2009. Later algorithms such as BWA-MEM
+              use different alignment strategies.
+            </p>
+          </div>
+
+          <p class="mini-label">
+            Source:
+            <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC2705234/"
+               target="_blank" rel="noopener noreferrer">
+              Li and Durbin (2009),
+              Fast and Accurate Short Read Alignment
+              with Burrows-Wheeler Transform
+            </a>.
           </p>
         `
       }
@@ -5221,6 +5294,541 @@ function initBowtieStepper() {
 
     showStep();
 }
+
+function initBWAStepper() {
+    if (!$("bwa-stepper")) return;
+
+    const reference = "ACGTACGT";
+    const read = "ACGACGT";
+    const n = reference.length;
+    const m = read.length;
+
+    const output = $("bwa-output");
+    const previous = $("bwa-prev");
+    const next = $("bwa-next");
+    const reset = $("bwa-reset");
+    const progress = $("bwa-progress");
+
+    // Construct D(i) using the equivalent teaching
+    // procedure from Li and Durbin (2009), Figure 4.
+    //
+    // The production BWA algorithm computes this
+    // efficiently using the reversed-reference index.
+
+    let segmentStart = 0;
+    let lowerBound = 0;
+
+    const dRows = [];
+
+    for (let i = 0; i < m; i++) {
+        const prefix = read.slice(0, i + 1);
+        const segment = read.slice(segmentStart, i + 1);
+
+        // Check whether the current segment occurs
+        // exactly somewhere in the reference.
+        const found = reference.includes(segment);
+
+        if (!found) {
+            // At least one additional difference is
+            // required for this part of the read.
+            lowerBound++;
+
+            // Restart the next segment after i.
+            segmentStart = i + 1;
+        }
+
+        dRows.push({
+            i: i,
+            prefix: prefix,
+            segment: segment,
+            found: found,
+            dValue: lowerBound,
+            nextStart: segmentStart
+        });
+    }
+
+    const D = dRows.map(row => row.dValue);
+
+    // Show the reference and the read aligned with
+    // one gap. This illustrates an indel, rather
+    // than a complete execution of BWA.
+    function makeGapTable() {
+        const referenceBases = [...reference];
+
+        const alignedRead = [
+            "A", "C", "G", "–", "A", "C", "G", "T"
+        ];
+
+        const headers = referenceBases.map((_, i) => `
+            <th>${i}</th>
+        `).join("");
+
+        const refCells = referenceBases.map((base, i) => `
+            <td style="${i === 3
+                ? 'background:#fff0e8;font-weight:bold;'
+                : ''}">
+                <code>${base}</code>
+            </td>
+        `).join("");
+
+        const readCells = alignedRead.map((base, i) => `
+            <td style="${i === 3
+                ? 'background:#fff0e8;font-weight:bold;'
+                : ''}">
+                <code>${base}</code>
+            </td>
+        `).join("");
+
+        return `
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Reference position</th>
+                            ${headers}
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        <tr>
+                            <th>Reference</th>
+                            ${refCells}
+                        </tr>
+
+                        <tr>
+                            <th>Read alignment</th>
+                            ${readCells}
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    // Show all D(i) values calculated so far.
+    function makeDTable(revealedCount, highlightedIndex = -1) {
+        const rows = dRows.slice(0, revealedCount).map(row => `
+            <tr style="${row.i === highlightedIndex
+                ? 'background:#e9f6f3;'
+                : ''}">
+                <td>${row.i}</td>
+                <td><code>${row.prefix}</code></td>
+                <td><code>${row.segment}</code></td>
+                <td>${row.found ? "Yes" : "No"}</td>
+                <td><strong>${row.dValue}</strong></td>
+            </tr>
+        `).join("");
+
+        return `
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>i</th>
+                            <th>Read prefix</th>
+                            <th>Segment tested</th>
+                            <th>Found?</th>
+                            <th>D(i)</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        ${rows}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    // Initial lessons.
+    const stages = [
+        {
+            title: "Start: Why Does BWA Need Inexact Matching?",
+            body: `
+                <p>
+                    Consider the reference sequence and observed
+                    read below.
+                </p>
+
+                <div class="example-grid">
+                    <div class="example-box">
+                        <strong>Reference X</strong>
+                        <code>${reference}</code>
+                    </div>
+
+                    <div class="example-box">
+                        <strong>Sequencing read W</strong>
+                        <code>${read}</code>
+                    </div>
+
+                    <div class="example-box">
+                        <strong>Reference length</strong>
+                        <code>n = ${n}</code>
+                    </div>
+
+                    <div class="example-box">
+                        <strong>Read length</strong>
+                        <code>m = ${m}</code>
+                    </div>
+                </div>
+
+                <p>
+                    The complete read does not appear exactly
+                    in the reference:
+                </p>
+
+                <div class="formula">
+                    Exact match =
+                    ${reference.includes(read) ? "Yes" : "No"}
+                </div>
+
+                <p>
+                    Standard exact FM-Index Backward Search
+                    would therefore return an empty interval.
+                    BWA extends searching to consider
+                    permitted sequence differences.
+                </p>
+            `
+        },
+        {
+            title: "Step 1: Identify the Missing Nucleotide",
+            body: `
+                <p>
+                    Compare the reference and read carefully.
+                    The read is missing the nucleotide
+                    <strong>T</strong> at reference position
+                    <strong>3</strong>.
+                </p>
+
+                ${makeGapTable()}
+
+                <div class="callout">
+                    <p>
+                        <strong>Observation:</strong>
+                        The dash represents a gap in the read
+                        relative to the reference. This is
+                        an example of a deletion in the read.
+                    </p>
+                </div>
+
+                <div class="formula">
+                    One deletion = one edit
+                </div>
+
+                <p>
+                    An inexact alignment with a difference
+                    allowance of at least one edit can
+                    accommodate this example.
+                </p>
+
+                <p>
+                    BWA can explore substitutions,
+                    insertions, and deletions during its
+                    bounded search rather than stopping
+                    when the exact match fails.
+                </p>
+            `
+        }
+    ];
+
+    // Add seven interactive stages for D(0) through D(6).
+    dRows.forEach((row, index) => {
+        stages.push({
+            title: `Step ${index + 2}: Calculate D(${row.i})`,
+            body: `
+                <p>
+                    We are examining the read prefix
+                    <code>${row.prefix}</code>,
+                    ending at position
+                    <strong>i = ${row.i}</strong>.
+                </p>
+
+                <p>
+                    Test the current segment:
+                    <code>${row.segment}</code>.
+                </p>
+
+                <div class="formula">
+                    Is ${row.segment} a substring of
+                    ${reference}?
+                    <br>
+                    ${row.found ? "Yes" : "No"}
+                </div>
+
+                ${row.found ? `
+                    <p>
+                        The segment occurs in the reference.
+                        No additional difference is required
+                        by this lower-bound calculation.
+                    </p>
+                ` : `
+                    <p>
+                        The segment does not occur exactly
+                        in the reference. Therefore, at least
+                        one additional difference is required.
+                    </p>
+
+                    <p>
+                        Increase the lower bound by one,
+                        then restart the next segment at
+                        read position
+                        <strong>${row.nextStart}</strong>.
+                    </p>
+                `}
+
+                <div class="formula">
+                    D(${row.i}) = ${row.dValue}
+                </div>
+
+                ${makeDTable(index + 1, row.i)}
+
+                ${row.i === 3 ? `
+                    <div class="callout">
+                        <p>
+                            <strong>Important transition:</strong>
+                            <code>ACG</code> occurs in the
+                            reference, but <code>ACGA</code>
+                            does not. The lower bound
+                            increases from 0 to 1.
+                        </p>
+
+                        <p>
+                            The next segment starts from
+                            the character at position 4.
+                        </p>
+                    </div>
+                ` : ""}
+
+                ${row.i === 4 ? `
+                    <div class="callout">
+                        <p>
+                            <strong>Notice:</strong>
+                            The full prefix <code>ACGAC</code>
+                            still has no exact match, but
+                            the new segment <code>C</code>
+                            does occur in the reference.
+                            Therefore, D(4) stays at 1.
+                        </p>
+                    </div>
+                ` : ""}
+            `
+        });
+    });
+
+    // Demonstrate pruning after constructing D.
+    stages.push({
+        title: "Step 9: Use D(i) to Prune Search Branches",
+        body: `
+            <p>
+                We have now constructed the complete
+                lower-bound array:
+            </p>
+
+            ${makeDTable(dRows.length)}
+
+            <div class="formula">
+                D = [${D.join(", ")}]
+            </div>
+
+            <p>
+                During BWA's inexact search:
+            </p>
+
+            <ul>
+                <li>
+                    <strong>i</strong> is the position of
+                    the remaining read prefix.
+                </li>
+                <li>
+                    <strong>z</strong> is the remaining
+                    difference allowance.
+                </li>
+                <li>
+                    <strong>D(i)</strong> is the lower
+                    bound on differences required.
+                </li>
+            </ul>
+
+            <h3>Pruning Condition</h3>
+
+            <div class="formula">
+                If z &lt; D(i), prune the branch.
+            </div>
+
+            <p>
+                At i = 6, our lower bound is
+                <strong>D(6) = ${D[6]}</strong>.
+            </p>
+
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Remaining z</th>
+                            <th>Comparison</th>
+                            <th>Decision</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        <tr>
+                            <td>0</td>
+                            <td>0 &lt; ${D[6]}</td>
+                            <td>Prune</td>
+                        </tr>
+                        <tr>
+                            <td>1</td>
+                            <td>1 &lt; ${D[6]} is false</td>
+                            <td>Continue exploring</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="callout">
+                <p>
+                    <strong>Important:</strong>
+                    Passing the lower-bound test does
+                    not guarantee a valid alignment.
+                    It only means that the branch
+                    cannot yet be ruled out.
+                </p>
+            </div>
+        `
+    });
+
+    // Final lesson.
+    stages.push({
+        title: "Final Result: How BWA Improves Searching",
+        body: `
+            <p>
+                Our read <code>${read}</code> can be aligned
+                against <code>${reference}</code>
+                by allowing one deletion in the read.
+            </p>
+
+            ${makeGapTable()}
+
+            <div class="example-grid">
+                <div class="example-box">
+                    <strong>Required differences</strong>
+                    <code>1 deletion</code>
+                </div>
+
+                <div class="example-box">
+                    <strong>Final lower bound</strong>
+                    <code>D(6) = ${D[6]}</code>
+                </div>
+            </div>
+
+            <h3>Why BWA Is Effective</h3>
+
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Technique</th>
+                            <th>Purpose</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        <tr>
+                            <td>BWT / FM-Index</td>
+                            <td>
+                                Efficiently searches a large
+                                indexed reference genome.
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <td>Inexact matching</td>
+                            <td>
+                                Allows mismatches, insertions,
+                                and deletions.
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <td>Lower-bound array D(i)</td>
+                            <td>
+                                Eliminates search branches that
+                                cannot fit the remaining
+                                difference allowance.
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <td>Priority-based search</td>
+                            <td>
+                                Explores promising partial
+                                alignments based on their scores.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="callout">
+                <p>
+                    <strong>Key takeaway:</strong>
+                    BWA combines compressed indexing
+                    with bounded inexact searching.
+                    The D array helps avoid exploring
+                    branches that cannot produce an
+                    alignment within the allowed differences.
+                </p>
+            </div>
+
+            <p>
+                <strong>Complexity note:</strong>
+                The lower-bound array can be computed
+                in O(m) time using BWT-based operations
+                on the reversed reference, with constant-time
+                rank queries. Our substring checks are
+                a teaching demonstration, not BWA's
+                production implementation.
+            </p>
+        `
+    });
+
+    let step = 0;
+
+    // Display the currently selected lesson.
+    function showStep() {
+        output.innerHTML = `
+            <h3>${stages[step].title}</h3>
+            ${stages[step].body}
+        `;
+
+        previous.disabled = step === 0;
+        next.disabled = step === stages.length - 1;
+
+        next.textContent = next.disabled
+            ? "Complete ✓"
+            : "Next step →";
+
+        progress.textContent =
+            `Step ${step} of ${stages.length - 1}`;
+    }
+
+    previous.addEventListener("click", () => {
+        step = Math.max(0, step - 1);
+        showStep();
+    });
+
+    next.addEventListener("click", () => {
+        step = Math.min(stages.length - 1, step + 1);
+        showStep();
+    });
+
+    reset.addEventListener("click", () => {
+        step = 0;
+        showStep();
+    });
+
+    showStep();
+}
 // ==================================================
 // RENDER THE SELECTED LESSON
 // ==================================================
@@ -5309,7 +5917,7 @@ function render() {
   initComplexityStepper();
   initReadMappingStepper();
   initBowtieStepper();
-
+  initBWAStepper();
 }
 
 // ==================================================
