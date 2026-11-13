@@ -1370,33 +1370,104 @@ const lessons = [
         id: "bowtie",
         title: "Bowtie",
         html: `
-          <div class="mini-label">Langmead et al., 2009</div>
-          <h2>Fast alignment with controlled mismatch search</h2>
+          <div class="mini-label">Applications in Bioinformatics</div>
+          <h2>Bowtie: Fast DNA Read Alignment</h2>
 
           <p>
-            Original Bowtie builds on a BWT-based index.
-            Its quality-aware backtracking considers
-            permitted substitutions, and its forward
-            and mirror indexes help limit
-            excessive backtracking.
+            <strong>Bowtie</strong>, introduced by Langmead et al.
+            in 2009, is a fast and memory-efficient program for
+            aligning short DNA reads against large reference genomes.
+            It uses BWT-based indexing together with
+            <strong>quality-aware backtracking</strong> and
+            <strong>double indexing</strong>.
           </p>
 
-          <div class="example-grid">
-            <div class="example-box">
-              <strong>Forward reference</strong>
-              <code>ACGTACGT$</code>
+          <p>
+            Standard FM-Index Backward Search finds exact matches.
+            However, DNA reads may contain sequencing errors or
+            genetic variations that prevent an exact match.
+            Bowtie extends this searching approach by allowing
+            permitted nucleotide substitutions.
+          </p>
+
+          <div class="callout">
+            <p>
+              <strong>The problem:</strong>
+              Allowing substitutions creates many possible
+              search paths. Exploring too many unsuccessful
+              paths is called <strong>excessive backtracking</strong>.
+              Bowtie uses double indexing and quality-aware
+              search to help control this problem.
+            </p>
+          </div>
+
+          <h3>Interactive Bowtie Walkthrough</h3>
+
+          <p>
+            We will examine how Bowtie uses forward and mirror
+            indexes, then demonstrate how a low-quality
+            nucleotide can be considered as a mismatch.
+          </p>
+
+          <div class="stepper" id="bowtie-stepper">
+            <div class="mini-label">
+              Double Indexing and Quality-Aware Backtracking
             </div>
-            <div class="example-box">
-              <strong>Mirror reference</strong>
-              <code>TGCATGCA$</code>
+
+            <div id="bowtie-output"
+                 class="stepper-output"
+                 aria-live="polite"></div>
+
+            <div class="stepper-controls">
+              <button type="button" class="btn secondary"
+                      id="bowtie-prev">
+                ← Previous
+              </button>
+
+              <button type="button" class="btn"
+                      id="bowtie-next">
+                Next step →
+              </button>
+
+              <button type="button" class="btn secondary"
+                      id="bowtie-reset">
+                Reset
+              </button>
+
+              <span id="bowtie-progress"
+                    class="lesson-position"></span>
             </div>
           </div>
 
+          <div class="callout">
+            <p>
+              <strong>Important distinction:</strong>
+              This lesson explains the original Bowtie
+              algorithm published in 2009. Original Bowtie
+              supports ungapped alignments with permitted
+              mismatches, but does not support insertions
+              or deletions. Bowtie 2 is a separate, later
+              implementation that supports gapped alignment.
+            </p>
+          </div>
+
           <p>
-            Original Bowtie (2009) handles mismatches
-            but not gapped alignments.
-            Later versions of Bowtie are different
-            and should be distinguished.
+            <strong>Next:</strong>
+            We will examine BWA, which also uses BWT-based
+            indexing but extends inexact searching to
+            handle insertions and deletions.
+          </p>
+
+          <p class="mini-label">
+            Sources:
+            <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC2690996/"
+               target="_blank" rel="noopener noreferrer">
+              Langmead et al. (2009)
+            </a>,
+            <a href="https://bowtie-bio.sourceforge.net/bowtie2/manual.shtml"
+               target="_blank" rel="noopener noreferrer">
+              Bowtie 2 Manual
+            </a>.
           </p>
         `
       },
@@ -4684,6 +4755,472 @@ function initReadMappingStepper() {
 
     showStep();
 }
+
+function initBowtieStepper() {
+    if (!$("bowtie-stepper")) return;
+
+    const reference = "ACGTACGT";
+    const forwardText = reference + "$";
+    const mirrorReference = [...reference].reverse().join("");
+    const mirrorText = mirrorReference + "$";
+
+    const read = "ACGTACGA";
+    const reversedRead = [...read].reverse().join("");
+
+    const qualityScore = 8;
+    const qualityLimit = 70;
+
+    // Naive BWT construction for this small teaching example.
+    // Real aligners use more efficient index construction.
+    function constructBWT(text) {
+        const rotations = Array.from(
+            { length: text.length },
+            (_, i) => text.slice(i) + text.slice(0, i)
+        );
+
+        const sorted = [...rotations].sort();
+
+        return sorted.map(
+            rotation => rotation[rotation.length - 1]
+        ).join("");
+    }
+
+    const forwardBWT = constructBWT(forwardText);
+    const mirrorBWT = constructBWT(mirrorText);
+
+    // Identify positions where the read differs from the reference.
+    const mismatches = [...read].map((character, i) => ({
+        position: i,
+        referenceBase: reference[i],
+        readBase: character,
+        mismatch: character !== reference[i]
+    })).filter(item => item.mismatch);
+
+    const output = $("bowtie-output");
+    const previous = $("bowtie-prev");
+    const next = $("bowtie-next");
+    const reset = $("bowtie-reset");
+    const progress = $("bowtie-progress");
+
+    let step = 0;
+
+    // Display a base-by-base comparison.
+    function comparisonTable(first, second, firstLabel, secondLabel) {
+        const rows = [...first].map((character, i) => {
+            const different = character !== second[i];
+
+            return `
+                <tr style="${different
+                    ? 'background:#fff0e8;'
+                    : ''}">
+                    <td>${i}</td>
+                    <td><code>${character}</code></td>
+                    <td><code>${second[i]}</code></td>
+                    <td>
+                        ${different ? "Mismatch" : "Match"}
+                    </td>
+                </tr>
+            `;
+        }).join("");
+
+        return `
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Position</th>
+                            <th>${firstLabel}</th>
+                            <th>${secondLabel}</th>
+                            <th>Comparison</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    const stages = [
+        {
+            title: "Start: Why Does Bowtie Need Backtracking?",
+            body: `
+                <p>
+                    Consider the reference sequence
+                    <code>${reference}</code>
+                    and the observed read
+                    <code>${read}</code>.
+                </p>
+
+                <div class="example-grid">
+                    <div class="example-box">
+                        <strong>Reference</strong>
+                        <code>${reference}</code>
+                    </div>
+
+                    <div class="example-box">
+                        <strong>Sequencing read</strong>
+                        <code>${read}</code>
+                    </div>
+                </div>
+
+                ${comparisonTable(
+                    reference,
+                    read,
+                    "Reference",
+                    "Read"
+                )}
+
+                <p>
+                    There is <strong>${mismatches.length}
+                    mismatch</strong> between these sequences.
+                    Exact Backward Search would not find this
+                    full-length read in the reference.
+                </p>
+
+                <div class="callout">
+                    <p>
+                        <strong>Bowtie's approach:</strong>
+                        Permit selected substitutions during
+                        searching, while limiting the number
+                        of unsuccessful paths explored.
+                    </p>
+                </div>
+            `
+        },
+
+        {
+            title: "Step 1: Construct the Forward Index",
+            body: `
+                <p>
+                    The forward index is constructed using
+                    the original reference genome sequence.
+                </p>
+
+                <div class="example-grid">
+                    <div class="example-box">
+                        <strong>Forward reference</strong>
+                        <code>${forwardText}</code>
+                    </div>
+
+                    <div class="example-box">
+                        <strong>Forward BWT output</strong>
+                        <code>${forwardBWT}</code>
+                    </div>
+                </div>
+
+                <div class="formula">
+                    BWT(${forwardText}) = ${forwardBWT}
+                </div>
+
+                <p>
+                    The FM-Index uses this transformed
+                    representation together with supporting
+                    rank and counting structures.
+                </p>
+
+                <p>
+                    Searching the forward index follows
+                    the familiar FM-Index process of
+                    examining query characters from
+                    right to left.
+                </p>
+            `
+        },
+
+        {
+            title: "Step 2: Construct the Mirror Index",
+            body: `
+                <p>
+                    The mirror index is constructed from the
+                    <strong>reversed reference sequence</strong>.
+                </p>
+
+                <div class="example-grid">
+                    <div class="example-box">
+                        <strong>Original reference</strong>
+                        <code>${reference}</code>
+                    </div>
+
+                    <div class="example-box">
+                        <strong>Reversed reference</strong>
+                        <code>${mirrorReference}</code>
+                    </div>
+
+                    <div class="example-box">
+                        <strong>Mirror index input</strong>
+                        <code>${mirrorText}</code>
+                    </div>
+
+                    <div class="example-box">
+                        <strong>Mirror BWT output</strong>
+                        <code>${mirrorBWT}</code>
+                    </div>
+                </div>
+
+                <div class="formula">
+                    BWT(${mirrorText}) = ${mirrorBWT}
+                </div>
+
+                <div class="callout">
+                    <p>
+                        <strong>Important:</strong>
+                        The mirror index reverses the
+                        reference. It does not perform
+                        reverse complementation.
+                    </p>
+
+                    <p>
+                        Both indexes cover the
+                        <strong>complete reference</strong>,
+                        not separate halves of it.
+                    </p>
+                </div>
+            `
+        },
+
+        {
+            title: "Step 3: How Double Indexing Reduces Backtracking",
+            body: `
+                <p>
+                    Bowtie can use the forward and mirror
+                    indexes in separate search phases.
+                    Consider a simplified policy that permits
+                    <strong>one mismatch</strong>.
+                </p>
+
+                <p>
+                    Our read differs at its final character,
+                    position <strong>${mismatches[0].position}</strong>.
+                    This is in the right half of the read.
+                </p>
+
+                <div class="example-grid">
+                    <div class="example-box">
+                        <strong>Original read</strong>
+                        <code>${read}</code>
+                    </div>
+
+                    <div class="example-box">
+                        <strong>Reversed read</strong>
+                        <code>${reversedRead}</code>
+                    </div>
+                </div>
+
+                ${comparisonTable(
+                    mirrorReference,
+                    reversedRead,
+                    "Reversed reference",
+                    "Reversed read"
+                )}
+
+                <p>
+                    In a forward-index phase that forbids
+                    substitutions in the right half, this
+                    mismatch is not allowed.
+                </p>
+
+                <p>
+                    In the mirror-index phase, the reversed
+                    read is searched instead. The mismatch
+                    now lies in the <strong>left half</strong>
+                    of the reversed read, where a substitution
+                    can be considered under this simplified
+                    one-mismatch policy.
+                </p>
+
+                <div class="callout">
+                    <p>
+                        <strong>Why it helps:</strong>
+                        By restricting substitutions in
+                        selected portions of the read,
+                        Bowtie reduces excessive branching
+                        during backward searching.
+                    </p>
+
+                    <p>
+                        This is a conceptual demonstration
+                        of double indexing, not a complete
+                        simulation of Bowtie's search phases.
+                    </p>
+                </div>
+            `
+        },
+
+        {
+            title: "Step 4: Quality-Aware Backtracking",
+            body: `
+                <p>
+                    Sequencing machines assign
+                    <strong>Phred quality scores</strong>
+                    to bases. Lower scores indicate greater
+                    uncertainty about the nucleotide.
+                </p>
+
+                <p>
+                    Suppose the final base
+                    <code>A</code> of our read has
+                    quality score <strong>Q = ${qualityScore}</strong>.
+                    Bowtie may consider a candidate alignment
+                    with <code>T</code> at this position.
+                </p>
+
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Operation</th>
+                                <th>Candidate</th>
+                                <th>Result</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            <tr>
+                                <td>Exact search</td>
+                                <td><code>${read}</code></td>
+                                <td>No exact match</td>
+                            </tr>
+
+                            <tr>
+                                <td>Backtracking</td>
+                                <td><code>${reference}</code></td>
+                                <td>One mismatch considered</td>
+                            </tr>
+
+                            <tr>
+                                <td>Quality check</td>
+                                <td>Q = ${qualityScore}</td>
+                                <td>
+                                    ${qualityScore} ≤ ${qualityLimit}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="formula">
+                    Mismatch-quality sum =
+                    ${qualityScore} ≤ ${qualityLimit}
+                </div>
+
+                <p>
+                    In original Bowtie's default Maq-like
+                    alignment policy, 70 is the maximum
+                    sum of quality scores at mismatched
+                    positions. This example satisfies that
+                    quality-sum condition, assuming the
+                    other alignment restrictions are met.
+                </p>
+
+                <div class="callout">
+                    <p>
+                        <strong>Remember:</strong>
+                        The original sequencing read is not
+                        changed. The substitution represents
+                        a candidate alignment explored
+                        by the algorithm.
+                    </p>
+
+                    <p>
+                        The threshold of 70 is not a
+                        percentage or a measure of
+                        alignment confidence.
+                    </p>
+                </div>
+            `
+        },
+
+        {
+            title: "Final Result: Bowtie's Main Contributions",
+            body: `
+                <p>
+                    Bowtie combines compact BWT-based indexing
+                    with two important search improvements.
+                </p>
+
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Technique</th>
+                                <th>Purpose</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            <tr>
+                                <td>Double indexing</td>
+                                <td>
+                                    Uses forward and reversed-reference
+                                    indexes to control backtracking.
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td>Quality-aware backtracking</td>
+                                <td>
+                                    Explores permitted mismatches while
+                                    considering nucleotide quality.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="callout">
+                    <p>
+                        <strong>Key takeaway:</strong>
+                        Bowtie demonstrates how BWT and FM-Index
+                        operations can support practical DNA read
+                        alignment, not just exact substring counting.
+                    </p>
+
+                    <p>
+                        Original Bowtie does not report
+                        gapped alignments. We will next examine
+                        BWA, which supports mismatches,
+                        insertions, and deletions.
+                    </p>
+                </div>
+            `
+        }
+    ];
+
+    function showStep() {
+        output.innerHTML = `
+            <h3>${stages[step].title}</h3>
+            ${stages[step].body}
+        `;
+
+        previous.disabled = step === 0;
+        next.disabled = step === stages.length - 1;
+
+        next.textContent = next.disabled
+            ? "Complete ✓"
+            : "Next step →";
+
+        progress.textContent =
+            `Step ${step} of ${stages.length - 1}`;
+    }
+
+    previous.addEventListener("click", () => {
+        step = Math.max(0, step - 1);
+        showStep();
+    });
+
+    next.addEventListener("click", () => {
+        step = Math.min(stages.length - 1, step + 1);
+        showStep();
+    });
+
+    reset.addEventListener("click", () => {
+        step = 0;
+        showStep();
+    });
+
+    showStep();
+}
 // ==================================================
 // RENDER THE SELECTED LESSON
 // ==================================================
@@ -4771,6 +5308,8 @@ function render() {
   initSASamplingStepper();
   initComplexityStepper();
   initReadMappingStepper();
+  initBowtieStepper();
+
 }
 
 // ==================================================
