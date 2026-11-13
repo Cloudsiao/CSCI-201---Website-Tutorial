@@ -1,0 +1,8 @@
+#lesson-content:has(#bit-query-demo) {
+  min-width: 0;
+}
+
+#bit-query-demo select {
+  font: inherit;
+  padding: 4px 8px;
+}

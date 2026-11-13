@@ -4477,6 +4477,7 @@ function render() {
   initRankCheckpointStepper();
   initSASamplingStepper();
   initComplexityStepper();
+  initRankSelect();
 }
 
 // ==================================================
